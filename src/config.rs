@@ -332,6 +332,39 @@ impl Config {
             &self.tracking.abdomen,
         ]
     }
+    /// This config with `example`'s insect markers, sectors and detector
+    /// settings, scaled into this config's image size the way a video is
+    /// letterboxed into it. The background file stays this config's own and
+    /// is not subtracted. None if the result does not fit.
+    pub fn with_geometry_of(&self, example: &Config) -> Option<Config> {
+        let (ew, eh, _) = example.source.dimensions();
+        let (w, h, _) = self.source.dimensions();
+        let scale = (w as f32 / ew as f32).min(h as f32 / eh as f32);
+        let (fw, fh) = ((ew as f32 * scale).round(), (eh as f32 * scale).round());
+        let (ox, oy) = (
+            ((w as f32 - fw) / 2.0).floor(),
+            ((h as f32 - fh) / 2.0).floor(),
+        );
+        let map = |p: Point| Point {
+            x: ox + p.x * fw / ew as f32,
+            y: oy + p.y * fh / eh as f32,
+        };
+        let mut c = self.clone();
+        c.head = map(example.head);
+        c.tail = map(example.tail);
+        c.tracking = TrackingConfig {
+            background_path: self.tracking.background_path.clone(),
+            subtract_background: false,
+            ..example.tracking.clone()
+        };
+        for i in 0..4 {
+            let s = c.sector_mut(i);
+            s.hinge = map(s.hinge);
+            s.inner_radius *= scale;
+            s.outer_radius *= scale;
+        }
+        c.validate().ok().map(|()| c)
+    }
     pub fn sector_mut(&mut self, index: usize) -> &mut Sector {
         match index {
             0 => &mut self.tracking.left,

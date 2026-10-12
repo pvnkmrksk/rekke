@@ -44,9 +44,12 @@ impl VideoFormat {
 }
 
 /// Encode one 8-bit luma image for an AVI chunk. `Raw` copies the pixels.
+/// `compact` builds per-frame Huffman tables: about 7% smaller MJPEG for
+/// about 15% more encoding time, for offline clips rather than live recording.
 pub fn encode(
     format: VideoFormat,
     quality: u8,
+    compact: bool,
     width: u32,
     height: u32,
     pixels: &[u8],
@@ -64,7 +67,9 @@ pub fn encode(
                 width <= u16::MAX as u32 && height <= u16::MAX as u32,
                 "Frame too large for JPEG"
             );
-            jpeg_encoder::Encoder::new(&mut *out, quality.clamp(1, 100))
+            let mut encoder = jpeg_encoder::Encoder::new(&mut *out, quality.clamp(1, 100));
+            encoder.set_optimized_huffman_tables(compact);
+            encoder
                 .encode(
                     pixels,
                     width as u16,
@@ -774,7 +779,7 @@ mod tests {
                 })
                 .collect();
             for f in &frames {
-                encode(format, 95, 64, 48, f, &mut chunk).unwrap();
+                encode(format, 95, false, 64, 48, f, &mut chunk).unwrap();
                 writer.write(&chunk).unwrap();
             }
             writer.finish().unwrap();

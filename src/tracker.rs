@@ -17,7 +17,8 @@ pub struct PartState {
     /// Signed relative angle; wings positive toward the head.
     pub angle_rad: Option<f32>,
     pub image_angle_rad: Option<f32>,
-    /// Strongest first. No edges means the measurement is invalid.
+    /// The primary edge first, then the others by strength. No edges means
+    /// the measurement is invalid.
     pub angles_rad: Vec<f32>,
     pub gradients: Vec<f32>,
     pub radius_px: Option<f32>,
@@ -582,18 +583,22 @@ impl Tracker {
                         let (sum, n) = (lo..hi.min(grid.bins))
                             .filter(|&b| grid.coverage[b] >= 0.9)
                             .fold((0.0, 0), |(s, n), b| (s + level[b], n + 1));
-                        if n > 0 { sum / n as f32 } else { 0.0 }
+                        (if n > 0 { sum / n as f32 } else { 0.0 }, n)
                     };
                     // Long windows on both sides: a narrow line, even a dark
-                    // or sharp one, has little blur behind it.
+                    // or sharp one, has little blur behind it. A window cut
+                    // to under half by the sector end is weaker evidence, so
+                    // an edge there cannot win on a few bins of contrast.
                     let shoulder = |i: usize| {
-                        let after = mean(i + 1, i + 1 + window);
-                        let before = mean(i.saturating_sub(window), i);
-                        if gradient[i] > 0.0 {
-                            after - before
-                        } else {
-                            before - after
-                        }
+                        let (after, a) = mean(i + 1, i + 1 + window);
+                        let (before, b) = mean(i.saturating_sub(window), i);
+                        let complete = (a.min(b) as f32 * 2.0 / window as f32).min(1.0);
+                        complete
+                            * if gradient[i] > 0.0 {
+                                after - before
+                            } else {
+                                before - after
+                            }
                     };
                     // One candidate per edge: the steepest point of each
                     // same-sign gradient lobe gives the angle.
@@ -631,6 +636,21 @@ impl Tracker {
                     candidates
                         .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));
                 }
+                // The leading edge is where the wing gives way to background
+                // toward the head; the trailing edge is the reverse. Choosing
+                // by polarity, not position, keeps a stray feature beyond the
+                // wing (an antenna, the arena wall) from taking its place.
+                let polarity = match s.primary_edge {
+                    PrimaryEdge::Strongest => None,
+                    PrimaryEdge::TowardHead => Some(-self.sense(index)),
+                    PrimaryEdge::TowardTail => Some(self.sense(index)),
+                };
+                let by_polarity = polarity
+                    .and_then(|sign| candidates.iter().position(|&i| gradient[i] * sign > 0.0));
+                if let Some(k) = by_polarity {
+                    let i = candidates.remove(k);
+                    candidates.insert(0, i);
+                }
                 let mut selected: Vec<usize> = Vec::new();
                 for i in candidates {
                     // Suppress a complete same-sign derivative lobe, not only its peak.
@@ -655,6 +675,8 @@ impl Tracker {
                 if !state.image_angles.is_empty() {
                     let selected = match s.primary_edge {
                         PrimaryEdge::Strongest => 0,
+                        _ if by_polarity.is_some() => 0,
+                        // No edge of that polarity: the outermost one.
                         PrimaryEdge::TowardHead => {
                             state
                                 .angles_rad

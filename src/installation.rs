@@ -10,7 +10,10 @@ const SEEDS: [(&str, &str); 6] = [
     ("camera-a.toml", include_str!("../configs/camera-a.toml")),
     ("camera-b.toml", include_str!("../configs/camera-b.toml")),
     ("demo.toml", include_str!("../configs/demo.toml")),
-    ("video.toml", include_str!("../configs/video.toml")),
+    (
+        "bogong-moth.toml",
+        include_str!("../configs/bogong-moth.toml"),
+    ),
     ("network.toml", include_str!("../configs/network.toml")),
     ("rigs.toml", include_str!("../configs/rigs.toml")),
 ];
@@ -242,7 +245,7 @@ mod tests {
         std::fs::write(old.join("configs/.camera-a.toml.lock"), b"").unwrap();
         std::fs::create_dir_all(old.join("configs/recordings/session")).unwrap();
         std::fs::create_dir_all(old.join("samples")).unwrap();
-        std::fs::write(old.join("samples/sample-fly.avi"), b"clip").unwrap();
+        std::fs::write(old.join("samples/sample.avi"), b"clip").unwrap();
         let new = root.path().join("Rekkefly");
         let path = seed(&new).unwrap();
         assert_eq!(Config::load(&path).unwrap().head.x, 301.0);
@@ -251,7 +254,7 @@ mod tests {
             new.join("configs/rigs.toml").is_file(),
             "missing seeds are added"
         );
-        assert!(new.join("samples/sample-fly.avi").is_file());
+        assert!(new.join("samples/sample.avi").is_file());
         assert!(!new.join("configs/recordings").exists());
         assert!(!new.join("configs/.camera-a.toml.lock").exists());
         assert!(

@@ -59,9 +59,9 @@ pub fn open(config: &Config, path: &Path, child: ChildControl) -> Result<Opened>
             ..
         } => {
             let mut input = config.resolve(path, video);
-            // Seeded configs point at the bundled sample wherever it is installed.
+            // Seeded configs point at the bundled example wherever it is installed.
             if !input.is_file()
-                && input.file_name().is_some_and(|n| n == "sample-fly.avi")
+                && input.file_name().is_some_and(|n| n == EXAMPLE)
                 && let Some(sample) = sample_video()
             {
                 input = sample;
@@ -155,10 +155,13 @@ fn open_video(
     }
 }
 
-/// Where a bundled sample video may live, most specific first. A file in
-/// the user's Rekkefly folder overrides the one shipped with the app.
+/// The bundled example video: a tethered Bogong moth.
+pub const EXAMPLE: &str = "bogong-moth.avi";
+/// The example's markers and sectors, used when it plays instead of a camera.
+const EXAMPLE_CONFIG: &str = include_str!("../configs/bogong-moth.toml");
+/// Where the sample video may live, most specific first. A `sample.avi` in
+/// the user's Rekkefly folder replaces the example shipped with the app.
 pub fn sample_candidates(exe: Option<&Path>, user: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
-    const NAME: &str = "sample-fly.avi";
     let mut paths = Vec::new();
     if let Some(path) =
         std::env::var_os("REKKEFLY_SAMPLE").or_else(|| std::env::var_os("REKKE_SAMPLE"))
@@ -166,16 +169,28 @@ pub fn sample_candidates(exe: Option<&Path>, user: Option<&Path>, cwd: &Path) ->
         paths.push(PathBuf::from(path));
     }
     if let Some(user) = user {
-        paths.push(user.join("samples").join(NAME));
+        paths.push(user.join("samples/sample.avi"));
     }
     if let Some(dir) = exe.and_then(Path::parent) {
-        paths.push(dir.join("samples").join(NAME));
-        paths.push(dir.join("../Resources/samples").join(NAME));
-        paths.push(dir.join("../share/rekkefly/samples").join(NAME));
-        paths.push(dir.join("../../samples").join(NAME));
+        paths.push(dir.join("samples").join(EXAMPLE));
+        paths.push(dir.join("../Resources/samples").join(EXAMPLE));
+        paths.push(dir.join("../share/rekkefly/samples").join(EXAMPLE));
+        paths.push(dir.join("../../samples").join(EXAMPLE));
     }
-    paths.push(cwd.join("samples").join(NAME));
+    paths.push(cwd.join("samples").join(EXAMPLE));
     paths
+}
+/// The config whose markers fit a sample video: `<name>.toml` beside it, or
+/// the built-in Bogong moth example for the bundled clip.
+pub fn sample_config(video: &Path) -> Option<Config> {
+    let beside = video.with_extension("toml");
+    if beside.is_file() {
+        return Config::load(&beside).ok();
+    }
+    if video.file_name().is_some_and(|n| n == EXAMPLE) {
+        return toml::from_str(EXAMPLE_CONFIG).ok();
+    }
+    None
 }
 pub fn sample_video() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok();

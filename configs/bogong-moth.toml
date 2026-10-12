@@ -1,10 +1,14 @@
-# Track a video file. AVI plays natively; other formats need FFmpeg.
+# The Bogong moth example: a real tethered Bogong moth (Agrotis infusa) filmed
+# from above at 30 fps, head down. Its antennae and legs reach into the wing
+# sectors, and each frame catches a different part of the wingbeat.
+# Also the template for tracking any video file: change source.path, then drag
+# the dots onto your insect. AVI plays natively; other formats need FFmpeg.
 # The GUI saves marker and detector edits back into this file automatically;
 # these comments are kept. Run it with:  rekkefly --config <this file>
 # Every setting is explained in the README ("Configuration reference").
 
 # Name shown in the window title, logs and recording folder names.
-instance = "video"
+instance = "bogong-moth"
 # How often the GUI preview refreshes. Tracking always uses every frame.
 preview_fps = 40
 # Save GUI edits 300 ms after you stop dragging (and on close).
@@ -12,8 +16,8 @@ autosave = true
 
 [source]
 kind = "video"
-# Relative to this config. The bundled sample is used if this file is missing.
-path = "../samples/sample-fly.avi"
+# Relative to this config. The bundled example is used if this file is missing.
+path = "../samples/bogong-moth.avi"
 # Loop at the end, and play at the recorded speed (false = as fast as possible).
 repeat = true
 realtime = true
@@ -24,12 +28,12 @@ fps = 30
 
 # Body axis: drag the magenta head dot and cyan tail dot onto the insect.
 [head]
-x = 320.0
-y = 175.0
+x = 354.0
+y = 268.0
 
 [tail]
-x = 320.0
-y = 330.0
+x = 352.0
+y = 88.0
 
 [tracking]
 # false: the wings mirror each other across the head–tail axis while you edit.
@@ -38,10 +42,10 @@ asymmetric = false
 angle_bins = 240
 radial_samples = 72
 # true: dark insect on a light (backlit) background; false: bright insect on dark.
-dark_on_light = true
+dark_on_light = false
 # Track the difference from a saved empty-scene image ("Save BG" in the toolbar).
 subtract_background = false
-background_path = "video.background.png"
+background_path = "bogong-moth.background.png"
 
 # Wing sectors. Angles are image degrees, clockwise from image-right.
 # method: "wing_blur" = robust, ignores legs and antennae (default)
@@ -53,71 +57,71 @@ background_path = "video.background.png"
 
 [tracking.left]
 enabled = true
-start_deg = 135.0
-span_deg = 130.0
-inner_radius = 55.0
-outer_radius = 185.0
+start_deg = -75.0
+span_deg = 145.0
+inner_radius = 50.0
+outer_radius = 120.0
 method = "wing_blur"
 threshold = 0.0
 max_edges = 2
-primary_edge = "strongest"
+primary_edge = "toward_head"
 contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.left.hinge]
-x = 296.0
-y = 240.0
+x = 392.0
+y = 210.0
 
 [tracking.right]
 enabled = true
-start_deg = -85.0
-span_deg = 130.0
-inner_radius = 55.0
-outer_radius = 185.0
+start_deg = 110.0
+span_deg = 145.0
+inner_radius = 50.0
+outer_radius = 120.0
 method = "wing_blur"
 threshold = 0.0
 max_edges = 2
-primary_edge = "strongest"
+primary_edge = "toward_head"
 contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.right.hinge]
-x = 344.0
-y = 240.0
+x = 314.0
+y = 210.0
 
 [tracking.head]
 enabled = false
-start_deg = -125.0
+start_deg = 55.0
 span_deg = 70.0
-inner_radius = 12.0
-outer_radius = 62.0
+inner_radius = 10.0
+outer_radius = 45.0
 method = "centroid"
 threshold = 0.0
 max_edges = 2
-primary_edge = "strongest"
+primary_edge = "toward_head"
 contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.head.hinge]
-x = 320.0
-y = 205.0
+x = 353.0
+y = 240.0
 
 [tracking.abdomen]
 enabled = false
-start_deg = 55.0
+start_deg = -125.0
 span_deg = 70.0
 inner_radius = 15.0
-outer_radius = 88.0
+outer_radius = 90.0
 method = "centroid"
 threshold = 0.0
 max_edges = 2
-primary_edge = "strongest"
+primary_edge = "toward_head"
 contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.abdomen.hinge]
-x = 320.0
-y = 265.0
+x = 352.0
+y = 180.0
 
 [output]
 # Full measurements as JSON over UDP, one datagram per frame.

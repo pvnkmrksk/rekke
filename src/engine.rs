@@ -39,6 +39,10 @@ pub struct State {
     pub source: String,
     /// Why the configured camera was replaced by the sample video.
     pub fallback: Option<String>,
+    /// The configuration tracking the sample: the run's own, with the
+    /// sample's markers and sectors (the Bogong moth example's, for the
+    /// bundled clip). The GUI shows these and never saves them.
+    pub example: Option<Config>,
     /// Outputs are off because they could not start (GUI only).
     pub output_error: Option<String>,
 }
@@ -53,6 +57,10 @@ pub struct StartOptions {
     /// If an output port is busy, keep tracking with outputs off and report
     /// it, instead of failing. Interactive use only.
     pub degrade_output: bool,
+    /// A video chosen for this run brings its own markers and sectors (a
+    /// `.toml` beside it, or the Bogong moth example's) instead of using the
+    /// config's, which describe a different insect.
+    pub video_markers: bool,
 }
 enum Command {
     Update(Box<Config>),
@@ -82,6 +90,16 @@ impl Engine {
     }
     pub fn start_with(config: Config, path: PathBuf, options: StartOptions) -> Result<Self> {
         config.validate()?;
+        let mut config = config;
+        let mut example = None;
+        if options.video_markers
+            && let SourceConfig::Video { path: video, .. } = &config.source
+            && let Some(own) = source::sample_config(&config.resolve(&path, video))
+                .and_then(|e| config.with_geometry_of(&e))
+        {
+            config = own.clone();
+            example = Some(own);
+        }
         let limit = options.limit;
         let mut output_error = None;
         let publisher = match Publisher::new(&config, &path) {
@@ -143,6 +161,7 @@ impl Engine {
             message: "Opening image source…".into(),
             background_loaded: background.is_some(),
             output_error,
+            example,
             ..Default::default()
         }));
         let fallback = options.fallback;
@@ -272,23 +291,32 @@ fn run(
                 "{}: camera unavailable, showing a sample: {reason}",
                 config.instance
             );
+            let mut example = None;
             let opened = source::sample_video()
                 .and_then(|video| {
-                    AviSource::open(&video, w, h, true, true)
-                        .ok()
-                        .map(|s| Opened {
-                            source: Box::new(s),
-                            description: format!(
-                                "Sample video {}",
-                                video.file_name().unwrap_or_default().to_string_lossy()
-                            ),
-                        })
+                    let s = AviSource::open(&video, w, h, true, true).ok()?;
+                    example =
+                        source::sample_config(&video).and_then(|e| config.with_geometry_of(&e));
+                    let name = video.file_name().unwrap_or_default().to_string_lossy();
+                    Some(Opened {
+                        source: Box::new(s),
+                        description: if name == source::EXAMPLE {
+                            "Sample video: Bogong moth example".into()
+                        } else {
+                            format!("Sample video {name}")
+                        },
+                    })
                 })
                 .unwrap_or_else(|| Opened {
                     source: Box::new(DemoSource::new(w, h, 60, 0.8)),
                     description: "Simulated fly".into(),
                 });
-            state.lock().unwrap().fallback = Some(reason);
+            if let Some(example) = &example {
+                config = example.clone();
+            }
+            let mut s = state.lock().unwrap();
+            s.fallback = Some(reason);
+            s.example = example;
             opened
         }
         Err(error) => return Err(error),

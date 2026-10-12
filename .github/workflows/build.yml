@@ -68,11 +68,11 @@ jobs:
         run: |
           exe="${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }}"
           "$exe" --version
-          "$exe" samples/sample-fly.avi --headless --fast --frames 100
+          "$exe" samples/bogong-moth.avi --headless --fast --frames 100
           mkdir -p smoke && cp configs/*.toml smoke/
           "$exe" --rigs smoke/rigs.toml --demo --headless --frames 30 --record
           ls smoke/recordings/*/video-0000.avi
-          "$exe" clip samples/sample-fly.avi smoke/clip.avi --duration 2 --format png
+          "$exe" clip samples/bogong-moth.avi smoke/clip.avi --duration 2 --format png
       - name: Package
         run: python scripts/package.py --platform ${{ matrix.platform }} --binary ${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }} --out dist
       - name: Ubuntu install and GUI smoke
@@ -81,7 +81,7 @@ jobs:
           sudo apt-get install -y ./dist/rekkefly_*_amd64.deb
           rekkefly --version
           rekkefly --config /usr/share/rekkefly/configs/demo.toml --headless --frames 10
-          rekkefly /usr/share/rekkefly/samples/sample-fly.avi --headless --fast --frames 50
+          rekkefly /usr/share/rekkefly/samples/bogong-moth.avi --headless --fast --frames 50
           xvfb-run -a rekkefly --config /usr/share/rekkefly/configs/demo.toml --screenshot dist/preview-linux.png
           # No camera on CI: a plain launch must fall back to the bundled sample.
           mkdir -p empty && cd empty && xvfb-run -a rekkefly --screenshot ../dist/preview-no-camera.png
@@ -96,7 +96,7 @@ jobs:
           & $app --version
           & $app --config configs/demo.toml --headless --frames 10
           if ($LASTEXITCODE -ne 0) { throw 'Installed executable failed' }
-          & $app "$env:LOCALAPPDATA\Programs\Rekkefly\samples\sample-fly.avi" --headless --fast --frames 50
+          & $app "$env:LOCALAPPDATA\Programs\Rekkefly\samples\bogong-moth.avi" --headless --fast --frames 50
           if ($LASTEXITCODE -ne 0) { throw 'Installed sample video failed' }
           Add-Type -AssemblyName System.Drawing
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($app)

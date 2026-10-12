@@ -192,9 +192,11 @@ fn write_frames(
             buffers.resize_with(batch.len(), Vec::new);
             let (format, quality) = (writer.format, writer.quality);
             let encode = |frame: &GrayFrame, out: &mut Vec<u8>| {
+                // Live recording favours encoding speed over the last few percent.
                 avi::encode(
                     format,
                     quality,
+                    false,
                     frame.width,
                     frame.height,
                     &frame.pixels,

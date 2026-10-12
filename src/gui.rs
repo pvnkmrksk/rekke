@@ -85,6 +85,9 @@ pub struct App {
     /// The file's values for fields that `overrides` replaces.
     saved: Config,
     overrides: Overrides,
+    /// The rig's own markers and sectors while the sample plays with the
+    /// example's; restored on restart. The example's are never saved.
+    rig: Option<Config>,
     path: PathBuf,
     engine: Option<Engine>,
     options: StartOptions,
@@ -199,6 +202,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
                 config,
                 saved,
                 overrides,
+                rig: None,
                 path,
                 engine: None,
                 options: start_options,
@@ -229,8 +233,24 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
     )
 }
 impl App {
+    /// Put the rig's own markers and sectors back after the example played.
+    /// Other edits made meanwhile (source, outputs) are kept.
+    fn restore_rig(&mut self) {
+        if let Some(rig) = self.rig.take() {
+            for c in [&mut self.config, &mut self.last_autosave] {
+                c.head = rig.head;
+                c.tail = rig.tail;
+                c.tracking = rig.tracking.clone();
+            }
+        }
+    }
     fn start(&mut self) {
-        match Engine::start_with(self.config.clone(), self.path.clone(), self.options.clone()) {
+        self.restore_rig();
+        let options = StartOptions {
+            video_markers: matches!(self.overrides.source, Some(SourceConfig::Video { .. })),
+            ..self.options.clone()
+        };
+        match Engine::start_with(self.config.clone(), self.path.clone(), options) {
             Ok(engine) => {
                 self.engine = Some(engine);
                 self.latest = None;
@@ -256,6 +276,11 @@ impl App {
         self.overrides.persistable(&self.config, &self.saved)
     }
     fn save(&mut self) {
+        if self.rig.is_some() {
+            self.status =
+                "The example's markers are not saved; Retry camera to edit your rig".into();
+            return;
+        }
         let config = self.persistable();
         if let Some(saver) = &self.autosaver {
             match config.validate() {
@@ -285,6 +310,12 @@ impl App {
         }
     }
     fn observe(&mut self, ctx: &egui::Context, state: &State) {
+        if let Some(example) = &state.example
+            && self.rig.is_none()
+        {
+            self.rig = Some(std::mem::replace(&mut self.config, example.clone()));
+            self.last_autosave = self.config.clone();
+        }
         let Some(s) = &state.latest else {
             return;
         };
@@ -990,16 +1021,21 @@ impl App {
     }
     fn banner(&mut self, ui: &mut egui::Ui, state: &State) {
         let (text, color) = if let Some(reason) = &state.fallback {
-            (
+            let what = if state.source == "Simulated fly" {
+                "a simulated fly".into()
+            } else if state.example.is_some() {
                 format!(
-                    "No camera — showing a {}. {}",
-                    if state.source.starts_with("Sample") {
-                        "sample video"
-                    } else {
-                        "simulated fly"
-                    },
-                    reason
-                ),
+                    "the {} with its own markers (edits are not saved)",
+                    state
+                        .source
+                        .strip_prefix("Sample video: ")
+                        .unwrap_or("sample video")
+                )
+            } else {
+                "a sample video".into()
+            };
+            (
+                format!("No camera — playing {what}. {reason}"),
                 Color32::from_rgb(240, 180, 80),
             )
         } else if let Some(note) = &self.overrides.note {
@@ -1154,6 +1190,7 @@ fn plot_grid(p: &egui::Painter, rect: Rect) {
 }
 impl Drop for App {
     fn drop(&mut self) {
+        self.restore_rig();
         if self.config.autosave
             && self.config != self.last_autosave
             && let Some(saver) = &self.autosaver
@@ -1293,6 +1330,7 @@ impl eframe::App for App {
         self.settings(ctx, &state);
         if self.config != self.last_autosave {
             if self.config.autosave
+                && self.rig.is_none()
                 && let Some(saver) = &self.autosaver
             {
                 saver.submit(self.persistable());
@@ -1394,6 +1432,7 @@ mod tests {
             saved: config.clone(),
             config,
             overrides: Overrides::default(),
+            rig: None,
             options: StartOptions::default(),
             title: String::new(),
             path: PathBuf::from("unused-gui.toml"),
@@ -1460,6 +1499,7 @@ mod tests {
                 config: Config::default(),
                 saved: Config::default(),
                 overrides: Overrides::default(),
+                rig: None,
                 options: StartOptions::default(),
                 title: String::new(),
                 path: PathBuf::from("unused.toml"),

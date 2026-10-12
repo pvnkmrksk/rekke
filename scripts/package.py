@@ -136,7 +136,7 @@ def main():
                     'LSMinimumSystemVersion': '12.0', 'NSHighResolutionCapable': True,
                     'NSCameraUsageDescription': 'Rekkefly uses your selected camera to track insect wings and body movement.',
                 }, stream)
-            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Sample Video', 'samples/sample-fly.avi --loop'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Bogong Moth Example', '--config configs/bogong-moth.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
                 script = package / f'Launch {label}.command'
                 script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./Rekkefly.app/Contents/MacOS/rekkefly {arguments}\n')
                 script.chmod(0o755)
@@ -171,14 +171,14 @@ def main():
             shutil.copy2(ROOT / 'assets/rekkefly.ico', package / 'rekkefly.ico')
             defaults = package / 'defaults'
             shutil.copytree(package / 'configs', defaults / 'configs')
-            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Sample Video', 'samples/sample-fly.avi --loop'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Bogong Moth Example', '--config configs/bogong-moth.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
                 (package / f'Launch {label}.cmd').write_text(f'@echo off\r\ncd /d "%~dp0"\r\nrekke.exe {arguments}\r\n', newline='')
             setup = output / f'Rekkefly-{VERSION}-windows-x64-setup.exe'
             command = os.environ.get('REKKEFLY_MAKENSIS', 'makensis')
             subprocess.run([command, f'/DVERSION={VERSION}', f'/DPACKAGE={package}', f'/DOUTPUT={setup}', str(ROOT / 'scripts/windows-installer.nsi')], check=True)
             print(setup)
         else:
-            for label, arguments in [('demo', '--config configs/demo.toml'), ('sample-video', 'samples/sample-fly.avi --loop'), ('all-rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('demo', '--config configs/demo.toml'), ('bogong-moth-example', '--config configs/bogong-moth.toml'), ('all-rigs', '--rigs configs/rigs.toml')]:
                 script = package / f'launch-{label}.sh'
                 script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./rekkefly {arguments}\n')
                 script.chmod(0o755)
@@ -196,7 +196,7 @@ def main():
             shutil.copy2(ROOT / 'assets/rekkefly-256.png', icons / 'rekkefly.png')
             desktop = deb / 'usr/share/applications'
             desktop.mkdir(parents=True)
-            (desktop / 'rekkefly.desktop').write_text('[Desktop Entry]\nType=Application\nName=Rekkefly\nComment=The new Kinefly: wing tracking for tethered insects\nKeywords=kinefly;insect;wing;tracking;drosophila;flight;\nExec=rekkefly %f\nIcon=rekkefly\nTerminal=false\nCategories=Science;Education;\nMimeType=video/x-msvideo;video/avi;\nStartupWMClass=rekkefly\nActions=rigs;sample;\n\n[Desktop Action rigs]\nName=Start all rigs (rigs.toml)\nExec=rekkefly --rigs\n\n[Desktop Action sample]\nName=Open the sample video\nExec=rekkefly /usr/share/rekkefly/samples/sample-fly.avi --loop\n')
+            (desktop / 'rekkefly.desktop').write_text('[Desktop Entry]\nType=Application\nName=Rekkefly\nComment=The new Kinefly: wing tracking for tethered insects\nKeywords=kinefly;insect;wing;tracking;drosophila;flight;\nExec=rekkefly %f\nIcon=rekkefly\nTerminal=false\nCategories=Science;Education;\nMimeType=video/x-msvideo;video/avi;\nStartupWMClass=rekkefly\nActions=rigs;sample;\n\n[Desktop Action rigs]\nName=Start all rigs (rigs.toml)\nExec=rekkefly --rigs\n\n[Desktop Action sample]\nName=Open the Bogong moth example\nExec=rekkefly /usr/share/rekkefly/samples/bogong-moth.avi --loop\n')
             (deb / 'DEBIAN/control').write_text(f'Package: rekkefly\nVersion: {VERSION}\nSection: science\nPriority: optional\nArchitecture: amd64\nMaintainer: pvnkmrksk <pvnkmrksk@users.noreply.github.com>\nDepends: libc6 (>= 2.35), libgcc-s1, libv4l-0, libx11-6, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libegl1, libgl1, libxcursor1, libxi6, libxrandr2\nReplaces: rekke\nConflicts: rekke\nHomepage: https://github.com/pvnkmrksk/rekke\nDescription: The new Kinefly: real-time wing tracking for tethered insects\n Native successor to Kinefly and Kinefly Docker. Tracks wing stroke\n envelopes from cameras or video files, ignores legs and antennae,\n publishes Kinefly-compatible ZMQ and runs many rigs from one command.\n')
             destination = output / f'rekkefly_{VERSION}_amd64.deb'
             subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(deb), str(destination)], check=True)

@@ -1,3 +1,4 @@
+pub mod analyze;
 pub mod avi;
 pub mod camera;
 pub mod clip;
@@ -9,8 +10,10 @@ pub mod geometry;
 pub mod gui;
 pub mod installation;
 pub mod lock;
+pub mod mcp;
 pub mod measurement_log;
 pub mod output;
+pub mod overlay;
 pub mod persistence;
 pub mod recording;
 pub mod rigs;

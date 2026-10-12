@@ -6,7 +6,6 @@ use rekkefly::{
     engine::{Engine, StartOptions},
     lock::ConfigLock,
     source,
-    tracker::Tracker,
 };
 use std::{
     path::{Path, PathBuf},
@@ -30,7 +29,9 @@ use std::{
         rekkefly --rigs rigs.toml                  every rig in a manifest, one window each\n  \
         rekkefly --rigs rigs.toml --headless --record\n  \
         rekkefly --list-cameras\n  \
-        rekkefly clip big.avi sample.avi --start 60 --duration 30",
+        rekkefly track recording.avi --csv angles.csv\n  \
+        rekkefly clip big.avi sample.avi --start 60 --duration 30\n  \
+        rekkefly mcp                               serve AI agents (Model Context Protocol)",
     args_conflicts_with_subcommands = true
 )]
 struct Args {
@@ -91,6 +92,9 @@ struct Args {
     /// Benchmark processing of a fixed synthetic frame; does not acquire a camera.
     #[arg(long)]
     benchmark: bool,
+    /// Print machine-readable JSON (with --list-cameras, --benchmark, --headless).
+    #[arg(long)]
+    json: bool,
     /// Capture the GUI to a PNG after two seconds, then exit.
     #[arg(long)]
     screenshot: Option<PathBuf>,
@@ -125,6 +129,40 @@ enum Tool {
         #[arg(long, default_value_t = 1)]
         every: u32,
     },
+    /// Track a whole video as fast as possible and summarise the wing angles.
+    ///
+    /// Without --config the video's own markers are used (a .toml beside it,
+    /// or the Bogong moth example's), else the defaults.
+    Track {
+        video: PathBuf,
+        /// Markers and detector settings to use (never written).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Override the wing detector for both wings.
+        #[arg(long, value_enum)]
+        method: Option<MethodArg>,
+        /// Write per-frame angles (degrees) and tracking time here.
+        #[arg(long)]
+        csv: Option<PathBuf>,
+        /// Write every full measurement as JSON lines here.
+        #[arg(long)]
+        jsonl: Option<PathBuf>,
+        /// Stop after this many frames.
+        #[arg(long)]
+        frames: Option<u64>,
+        /// Print the summary as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Serve the Model Context Protocol on stdin/stdout, for AI agents and
+    /// automation: cameras, configs, rigs, live angles, snapshots, videos.
+    ///
+    /// Add it to an MCP client, for example:  claude mcp add rekkefly -- rekkefly mcp
+    Mcp {
+        /// Folder of rig configs (default: the folder Rekkefly itself uses).
+        #[arg(long)]
+        config_dir: Option<PathBuf>,
+    },
     /// Render a synthetic tethered-fly video with known wing angles.
     #[command(hide = true)]
     Synth {
@@ -139,6 +177,13 @@ enum Tool {
         #[arg(long, default_value_t = 1.6)]
         noise: f32,
     },
+}
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum MethodArg {
+    /// Ignores legs and antennae (default).
+    Robust,
+    /// Kinefly's strongest edge.
+    Classic,
 }
 #[derive(Clone, Copy, clap::ValueEnum)]
 enum FormatArg {
@@ -201,6 +246,92 @@ fn run() -> Result<()> {
             );
             return Ok(());
         }
+        Some(Tool::Track {
+            ref video,
+            ref config,
+            method,
+            ref csv,
+            ref jsonl,
+            frames,
+            json,
+        }) => {
+            let loaded = config
+                .as_deref()
+                .map(|p| Config::load(p).with_context(|| format!("Config {}", p.display())))
+                .transpose()?;
+            let options = rekkefly::analyze::TrackOptions {
+                frames,
+                method: method.map(|m| match m {
+                    MethodArg::Robust => rekkefly::config::Method::WingBlur,
+                    MethodArg::Classic => rekkefly::config::Method::Edge,
+                }),
+                csv: csv.clone(),
+                jsonl: jsonl.clone(),
+                video_markers: config.is_none(),
+            };
+            let base = config.clone().unwrap_or_else(|| "unused.toml".into());
+            let s = rekkefly::analyze::track(video, loaded.as_ref(), &base, &options)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&s)?);
+                return Ok(());
+            }
+            let name = |m: rekkefly::config::Method| match m {
+                rekkefly::config::Method::WingBlur => "robust",
+                rekkefly::config::Method::Edge => "classic",
+                rekkefly::config::Method::Centroid => "centroid",
+            };
+            println!(
+                "Tracked {} frames of {} ({}×{}, {} detector{}) in {:.2} s: {:.0} frames/s, {:.0} µs tracking per frame (99% under {:.0} µs)",
+                s.frames,
+                video.file_name().unwrap_or_default().to_string_lossy(),
+                s.width,
+                s.height,
+                name(s.method[0]),
+                if s.video_markers {
+                    ", the video's own markers"
+                } else {
+                    ""
+                },
+                s.timing.seconds,
+                s.timing.frames_per_second,
+                s.timing.mean_us,
+                s.timing.p99_us
+            );
+            for (label, a) in [
+                ("left", &s.left),
+                ("right", &s.right),
+                ("L−R", &s.left_minus_right),
+                ("head", &s.head),
+                ("abdomen", &s.abdomen),
+            ] {
+                if let (Some(mean), Some(sd), Some(min), Some(max)) = (a.mean, a.sd, a.min, a.max) {
+                    println!(
+                        "  {label:<8} mean {mean:+7.1}°  sd {sd:5.1}°  range {min:+6.1}° … {max:+6.1}°  ({} frames)",
+                        a.valid
+                    );
+                }
+            }
+            for path in [&s.csv, &s.jsonl].into_iter().flatten() {
+                println!("Wrote {}", path.display());
+            }
+            return Ok(());
+        }
+        Some(Tool::Mcp { ref config_dir }) => {
+            let directory = match config_dir {
+                Some(dir) => dir.clone(),
+                None => default_config()?
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| ".".into()),
+            };
+            eprintln!(
+                "rekkefly {}: MCP server on stdio, configs in {}",
+                env!("CARGO_PKG_VERSION"),
+                directory.display()
+            );
+            let stdin = std::io::stdin();
+            return rekkefly::mcp::serve(stdin.lock(), std::io::stdout(), directory);
+        }
         Some(Tool::Synth {
             ref output,
             seconds,
@@ -226,7 +357,9 @@ fn run() -> Result<()> {
     }
     if args.list_cameras {
         let cameras = source::list_cameras()?;
-        if cameras.is_empty() {
+        if args.json {
+            println!("{}", serde_json::json!({ "cameras": cameras }));
+        } else if cameras.is_empty() {
             println!("No cameras found.");
         } else {
             println!("Use the number (or the path/name) as source.device:");
@@ -335,7 +468,23 @@ fn run() -> Result<()> {
     let config = overrides.apply(&saved);
     config.validate()?;
     if args.benchmark {
-        return benchmark(config, args.frames.unwrap_or(2000));
+        let b = rekkefly::analyze::benchmark(&config, args.frames.unwrap_or(2000))?;
+        if args.json {
+            println!("{}", serde_json::to_string_pretty(&b)?);
+            return Ok(());
+        }
+        println!(
+            "{} frames, {}×{}, {} angular × {} radial samples × {} enabled sectors",
+            b.frames, b.width, b.height, b.angle_bins, b.radial_samples, b.sectors
+        );
+        println!(
+            "Processing only: {:.1} µs/frame, {:.0} frames/s",
+            b.mean_us, b.frames_per_second
+        );
+        println!(
+            "Includes foreground preparation and tracking; excludes acquisition, GUI, serialization and output."
+        );
+        return Ok(());
     }
     let stop = Arc::new(AtomicBool::new(false));
     if args.supervised {
@@ -351,7 +500,13 @@ fn run() -> Result<()> {
     let flag = stop.clone();
     ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed))?;
     if args.headless {
-        let engine = Engine::start(config, config_path, args.frames)?;
+        let options = StartOptions {
+            limit: args.frames,
+            video_markers: matches!(overrides.source, Some(SourceConfig::Video { .. })),
+            ..Default::default()
+        };
+        let started = std::time::Instant::now();
+        let engine = Engine::start_with(config, config_path, options)?;
         while !engine.is_finished() {
             if stop.load(Ordering::Relaxed) {
                 engine.stop();
@@ -364,15 +519,38 @@ fn run() -> Result<()> {
         if let Some(error) = state.error {
             anyhow::bail!(error);
         }
-        println!(
-            "Processed {} frames from {}; {} local UDP drops; {} ZMQ queue drops; video {}/{} frames written",
-            state.frames,
-            state.source,
-            state.udp_dropped,
-            state.zmq_dropped,
-            state.recording.written,
-            state.recording.accepted
-        );
+        let seconds = started.elapsed().as_secs_f64();
+        if args.json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "frames": state.frames,
+                    "source": state.source,
+                    "seconds": seconds,
+                    "frames_per_second": state.frames as f64 / seconds.max(1e-9),
+                    "udp_dropped": state.udp_dropped,
+                    "zmq_dropped": state.zmq_dropped,
+                    "recording": {
+                        "written": state.recording.written,
+                        "accepted": state.recording.accepted,
+                        "directory": state.recording.directory,
+                        "error": state.recording.error,
+                    },
+                })
+            );
+        } else {
+            println!(
+                "Processed {} frames from {} in {:.2} s ({:.0} frames/s); {} local UDP drops; {} ZMQ queue drops; video {}/{} frames written",
+                state.frames,
+                state.source,
+                seconds,
+                state.frames as f64 / seconds.max(1e-9),
+                state.udp_dropped,
+                state.zmq_dropped,
+                state.recording.written,
+                state.recording.accepted
+            );
+        }
         if let Some(error) = state.recording.error {
             anyhow::bail!(error);
         }
@@ -386,6 +564,7 @@ fn run() -> Result<()> {
             // never a sample that could be mistaken for live data.
             fallback: !args.supervised,
             degrade_output: !args.supervised,
+            ..Default::default()
         };
         let result = rekkefly::gui::launch(rekkefly::gui::Launch {
             saved,
@@ -406,38 +585,6 @@ fn run() -> Result<()> {
         anyhow::bail!("Built without GUI support; use --headless")
     }
 }
-fn benchmark(config: Config, count: u64) -> Result<()> {
-    ensure!(count > 0, "Benchmark frame count must be positive");
-    let (w, h, fps) = config.source.dimensions();
-    let demo = source::DemoSource::new(w, h, fps, 1.0);
-    let raw = demo.render(0.031, 0);
-    let bg = demo.blank_frame();
-    let tracker = Tracker::new(&config, w, h);
-    for _ in 0..20 {
-        std::hint::black_box(tracker.process(&raw, Some(&bg), 0)?);
-    }
-    let start = std::time::Instant::now();
-    for _ in 0..count {
-        std::hint::black_box(tracker.process(&raw, Some(&bg), 0)?);
-    }
-    let seconds = start.elapsed().as_secs_f64();
-    println!(
-        "{count} frames, {w}×{h}, {} angular × {} radial samples × {} enabled sectors",
-        config.tracking.angle_bins,
-        config.tracking.radial_samples,
-        config.sectors().iter().filter(|s| s.enabled).count()
-    );
-    println!(
-        "Processing only: {:.1} µs/frame, {:.0} frames/s ({seconds:.3}s total)",
-        seconds * 1e6 / count as f64,
-        count as f64 / seconds
-    );
-    println!(
-        "Includes foreground preparation and tracking; excludes acquisition, GUI, serialization and output."
-    );
-    Ok(())
-}
-
 fn default_config() -> Result<PathBuf> {
     config_path_for(
         &std::env::current_dir()?,

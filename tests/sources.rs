@@ -12,6 +12,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+fn root() -> &'static std::path::Path {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+}
 fn write_video(path: &std::path::Path, width: u32, height: u32, frames: u8, fps: u32) {
     let mut writer = AviWriter::create(path, width, height, fps, 1, VideoFormat::Raw).unwrap();
     for k in 0..frames {
@@ -98,6 +101,7 @@ fn missing_camera_falls_back_to_a_sample_only_when_allowed() {
     // A missing device path fails without asking the OS for camera access,
     // so this test never waits on a permission prompt on CI.
     config.source = camera_source(&config, "/nonexistent/rekkefly-test-camera");
+    let config_source = config.source.clone();
     let path = PathBuf::from("unused-fallback.toml");
     // Experiments (headless, rigs) must fail loudly instead.
     let strict = Engine::start(config.clone(), path.clone(), Some(3)).unwrap();
@@ -116,11 +120,18 @@ fn missing_camera_falls_back_to_a_sample_only_when_allowed() {
     let state = wait(&engine, |s| s.frames >= 5);
     assert!(state.error.is_none(), "{:?}", state.error);
     assert!(state.fallback.is_some());
-    assert!(
-        state.source.starts_with("Sample video") || state.source == "Simulated fly",
-        "{}",
-        state.source
+    // The bundled example plays with the moth's own markers and sectors.
+    assert_eq!(state.source, "Sample video: Bogong moth example");
+    let example = state.example.as_ref().expect("the example's markers");
+    let moth = Config::load(&root().join("configs/bogong-moth.toml")).unwrap();
+    assert_eq!(example.head, moth.head);
+    assert_eq!(example.tracking.left, moth.tracking.left);
+    assert_eq!(
+        example.source, config_source,
+        "the run's own source and outputs"
     );
+    let m = &state.latest.as_ref().unwrap().measurement;
+    assert!(m.left.angle_rad.is_some() && m.right.angle_rad.is_some());
     // The sample must never become this rig's saved background or a recording.
     engine.save_background().unwrap();
     let state = wait(&engine, |s| s.message.contains("Background capture is off"));
@@ -202,4 +213,86 @@ fn run_only_overrides_apply_but_are_never_saved() {
         realtime: true,
     };
     assert_eq!(camera_source(&video, "0").dimensions(), (1280, 1024, 50));
+}
+#[test]
+fn example_markers_scale_into_any_frame_size_like_the_video_does() {
+    let moth = Config::load(&root().join("configs/bogong-moth.toml")).unwrap();
+    let mut rig = Config {
+        source: SourceConfig::Camera {
+            device: "0".into(),
+            width: 1280,
+            height: 1024,
+            fps: 100,
+        },
+        ..Config::default()
+    };
+    rig.tracking.subtract_background = true;
+    let example = rig.with_geometry_of(&moth).unwrap();
+    // 640×480 fits 1280×1024 at 2×, centred with 32 px bars above and below.
+    assert_eq!(
+        (example.head.x, example.head.y),
+        (2.0 * moth.head.x, 2.0 * moth.head.y + 32.0)
+    );
+    let (a, b) = (&example.tracking.left, &moth.tracking.left);
+    assert_eq!(a.hinge.x, 2.0 * b.hinge.x);
+    assert_eq!(a.outer_radius, 2.0 * b.outer_radius);
+    assert_eq!(a.start_deg, b.start_deg);
+    assert_eq!(example.tracking.dark_on_light, moth.tracking.dark_on_light);
+    // Never the rig's background, never subtracted, same outputs and source.
+    assert!(!example.tracking.subtract_background);
+    assert_eq!(
+        example.tracking.background_path,
+        rig.tracking.background_path
+    );
+    assert_eq!(
+        (&example.source, &example.output),
+        (&rig.source, &rig.output)
+    );
+    // The bundled clip finds its markers; a sidecar config wins for any clip.
+    let bundled = rekkefly::source::sample_config(&root().join("samples/bogong-moth.avi"));
+    assert_eq!(bundled.unwrap().head, moth.head);
+    let dir = tempfile::tempdir().unwrap();
+    let mine = dir.path().join("sample.avi");
+    assert!(rekkefly::source::sample_config(&mine).is_none());
+    let mut sidecar = Config::default();
+    sidecar.head.x = 300.0;
+    sidecar.save(&dir.path().join("sample.toml")).unwrap();
+    assert_eq!(
+        rekkefly::source::sample_config(&mine).unwrap().head.x,
+        300.0
+    );
+}
+#[test]
+fn a_video_opened_for_one_run_brings_its_own_markers() {
+    let mut config = Config::default();
+    config.output.enabled = false;
+    config.output.zmq_enabled = false;
+    config.source = SourceConfig::Video {
+        path: root()
+            .join("samples/bogong-moth.avi")
+            .to_string_lossy()
+            .into_owned(),
+        width: 640,
+        height: 480,
+        fps: 30,
+        repeat: false,
+        realtime: false,
+    };
+    let path = PathBuf::from("unused-markers.toml");
+    let moth = Config::load(&root().join("configs/bogong-moth.toml")).unwrap();
+    for video_markers in [true, false] {
+        let options = StartOptions {
+            limit: Some(3),
+            video_markers,
+            ..Default::default()
+        };
+        let engine = Engine::start_with(config.clone(), path.clone(), options).unwrap();
+        let state = wait(&engine, |s| s.finished);
+        assert!(state.error.is_none(), "{:?}", state.error);
+        assert_eq!(
+            state.example.map(|e| e.head),
+            video_markers.then_some(moth.head),
+            "the config's own markers unless asked"
+        );
+    }
 }
