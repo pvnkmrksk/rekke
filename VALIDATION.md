@@ -1,5 +1,7 @@
 # Validation — Rekke 0.5.1
 
+[Native release run 38199683516](https://github.com/pvnkmrksk/rekke/actions/runs/38199683516) passed on all four platforms, including formatting, Clippy, 57 default-feature tests and 54 processing-only tests, release compilation and packaging. Ubuntu's installed `.deb` passed the synthetic GUI smoke; Windows' installer and installed binary passed their smoke checks. The Windows package verifies that its executable does not import a separately installed MSVC runtime DLL. The exact GitHub-built Apple Silicon app was also mounted locally, its signature verified and version checked as 0.5.1. These are synthetic/software checks, not physical camera tests.
+
 Before the Windows runtime packaging fix, Rekke 0.5.0 on macOS ARM64 passed **57 default-feature tests**, **54 processing-only tests**, formatting, and Clippy (`--all-targets -- -D warnings`). The upstream `block 0.1.6` future-compatibility notice remains.
 
 The [Build and release workflow](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml) runs formatting, Clippy with warnings denied, both default-feature and processing-only tests, and native release builds on Ubuntu 22.04 x64, Windows 2022 x64, macOS ARM64 and macOS Intel. All four builds must pass before the release publishes.
