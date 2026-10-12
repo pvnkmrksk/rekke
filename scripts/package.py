@@ -111,11 +111,19 @@ def main():
                 'window_rect': ((150, 150), (640, 420)), 'default_view': 'icon-view',
                 'icon_size': 96, 'text_size': 13, 'label_pos': 'bottom', 'arrange_by': None,
                 'icon_locations': {'Rekke.app': (180, 200), 'Applications': (460, 200), 'Install help.txt': (560, 340)},
-                'hide_extensions': ['Rekke.app', 'Install help.txt'],
+                'hide_extensions': ['Install help.txt'],
                 'show_status_bar': False, 'show_tab_view': False, 'show_toolbar': False,
                 'show_pathbar': False, 'show_sidebar': False,
             })
             subprocess.run(['hdiutil', 'verify', str(dmg)], check=True)
+            # Verify the copied bundle, not only the staging directory: Finder
+            # attributes added by a DMG tool can invalidate an app signature.
+            with tempfile.TemporaryDirectory(prefix='rekke-dmg-check-') as mount:
+                subprocess.run(['hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', mount, str(dmg)], check=True)
+                try:
+                    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(Path(mount) / 'Rekke.app')], check=True)
+                finally:
+                    subprocess.run(['hdiutil', 'detach', mount], check=True)
             print(dmg)
         elif args.platform.startswith('windows'):
             shutil.copy2(ROOT / 'assets/rekke.ico', package / 'rekke.ico')
