@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
+ <defs><linearGradient id="b" x2="1" y2="1"><stop stop-color="#fbfdfc"/><stop offset="1" stop-color="#e6f0eb"/></linearGradient></defs>
+ <rect width="640" height="420" fill="url(#b)"/>
+ <text x="320" y="60" text-anchor="middle" font-family="Helvetica Neue,Helvetica,sans-serif" font-size="30" font-weight="600" fill="#203b36">Rekke</text>
+ <text x="320" y="87" text-anchor="middle" font-family="Helvetica Neue,Helvetica,sans-serif" font-size="14" fill="#647b73">Insect wing tracking</text>
+ <circle cx="180" cy="207" r="79" fill="#fff" opacity=".58"/>
+ <circle cx="460" cy="207" r="79" fill="#fff" opacity=".58"/>
+ <path d="M296 208H342M328 193L344 208L328 223" fill="none" stroke="#7a9d8e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+ <text x="320" y="352" text-anchor="middle" font-family="Helvetica Neue,Helvetica,sans-serif" font-size="18" font-weight="500" fill="#294c41">Drag Rekke to Applications</text>
+ <text x="320" y="378" text-anchor="middle" font-family="Helvetica Neue,Helvetica,sans-serif" font-size="13" fill="#647b73">Then open Rekke from your Applications folder</text>
+</svg>

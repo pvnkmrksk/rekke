@@ -1,0 +1,11 @@
+# One config per device. Add [[rigs]] entries for more cameras.
+# Edit camera-a.toml / camera-b.toml to set devices, geometry and unique ports.
+[[rigs]]
+config = "camera-a.toml"
+enabled = true
+record = false
+
+[[rigs]]
+config = "camera-b.toml"
+enabled = true
+record = false

@@ -1,0 +1,39 @@
+[package]
+name = "rekke"
+version = "0.5.0"
+edition = "2024"
+description = "Configurable, multi-instance insect wing kinematics tracker"
+license = "MIT"
+repository = "https://github.com/pvnkmrksk/rekke"
+homepage = "https://github.com/pvnkmrksk/rekke"
+readme = "README.md"
+
+[features]
+default = ["gui", "camera"]
+gui = ["dep:eframe"]
+camera = ["dep:nokhwa"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
+nokhwa = { version = "0.10.10", default-features = false, features = ["input-native", "decoding"], optional = true }
+zeromq = { version = "0.6", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "net"] }
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[[bin]]
+name = "rekke"
+path = "src/main.rs"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

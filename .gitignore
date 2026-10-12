@@ -1,0 +1,12 @@
+/target/
+/dist/
+*.background.png
+*.jsonl
+*.avi
+/recordings/
+/configs/recordings/
+__pycache__/
+.DS_Store
+/rekke.toml
+/wingtrace.toml
+.env

@@ -1,0 +1,107 @@
+name: Build and release
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x64
+            binary: rekke
+          - os: windows-2022
+            platform: windows-x64
+            binary: rekke.exe
+          - os: macos-15
+            platform: macos-arm64
+            binary: rekke
+          - os: macos-15-intel
+            platform: macos-x64
+            binary: rekke
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config nasm clang libclang-dev libv4l-dev libx11-dev libxi-dev libxrandr-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libegl1-mesa-dev libgl1 xvfb
+      - name: macOS packaging dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install nasm
+          python -m pip install dmgbuild==1.6.7
+      - name: Windows tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm nsis --yes --no-progress
+          "$env:ProgramFiles\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - run: cargo fetch --locked
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo test --locked --no-default-features
+      - run: cargo build --release --locked
+      - name: Package
+        run: python scripts/package.py --platform ${{ matrix.platform }} --binary target/release/${{ matrix.binary }} --out dist
+      - name: Ubuntu install and GUI smoke
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/rekke_*_amd64.deb
+          rekke --version
+          rekke --config /usr/share/rekke/configs/demo.toml --headless --frames 10
+          xvfb-run -a rekke --config /usr/share/rekke/configs/demo.toml --screenshot dist/preview-linux.png
+      - name: Windows installer and icon smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist/*setup.exe).FullName
+          $install = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw 'Installer failed' }
+          $app = "$env:LOCALAPPDATA\Programs\Rekke\rekke.exe"
+          & $app --version
+          & $app --config configs/demo.toml --headless --frames 10
+          if ($LASTEXITCODE -ne 0) { throw 'Installed executable failed' }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($app)
+          if ($null -eq $icon) { throw 'Executable icon missing' }
+          $icon.Dispose()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rekke-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum *.zip *.dmg *.deb *.tar.gz *setup.exe > SHA256SUMS.txt
+          cd ..
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.dmg dist/*.deb dist/*.tar.gz dist/*setup.exe dist/SHA256SUMS.txt --verify-tag --title "Rekke ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md --latest

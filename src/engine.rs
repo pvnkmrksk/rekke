@@ -1,0 +1,410 @@
+use crate::{
+    config::Config,
+    frame::GrayFrame,
+    output::Publisher,
+    recording::{Recorder, RecordingState},
+    source::{self, ChildControl, DemoSource},
+    tracker::{Measurement, Tracker},
+};
+use anyhow::{Context, Result, ensure};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
+};
+
+#[derive(Clone)]
+pub struct Snapshot {
+    pub frame: Arc<GrayFrame>,
+    pub foreground: Option<Arc<GrayFrame>>,
+    pub measurement: Measurement,
+}
+#[derive(Clone, Default)]
+pub struct State {
+    pub latest: Option<Arc<Snapshot>>,
+    pub message: String,
+    pub error: Option<String>,
+    pub finished: bool,
+    pub background_loaded: bool,
+    pub frames: u64,
+    pub udp_dropped: u64,
+    pub zmq_dropped: u64,
+    pub recording: RecordingState,
+}
+enum Command {
+    Update(Box<Config>),
+    SaveBackground,
+    LoadBackground,
+    DemoBackground,
+    Record(bool),
+}
+pub struct Engine {
+    state: Arc<Mutex<State>>,
+    stop: Arc<AtomicBool>,
+    sender: mpsc::Sender<Command>,
+    child: ChildControl,
+    thread: Option<JoinHandle<()>>,
+    initial: Config,
+}
+impl Engine {
+    pub fn start(config: Config, path: PathBuf, limit: Option<u64>) -> Result<Self> {
+        config.validate()?;
+        let publisher = Publisher::new(&config, &path)?;
+        let bg_path = config.resolve(&path, &config.tracking.background_path);
+        let background = if bg_path.is_file() {
+            Some(GrayFrame::load(&bg_path)?)
+        } else {
+            None
+        };
+        ensure!(
+            !config.tracking.subtract_background || background.is_some(),
+            "No saved background at {}. Capture one in the GUI before enabling subtraction.",
+            bg_path.display()
+        );
+        if let Some(bg) = &background {
+            let (w, h, _) = config.source.dimensions();
+            ensure!(
+                bg.width == w && bg.height == h,
+                "Saved background dimensions do not match configured camera"
+            );
+        }
+        let state = Arc::new(Mutex::new(State {
+            message: "Opening image source…".into(),
+            background_loaded: background.is_some(),
+            ..Default::default()
+        }));
+        let stop = Arc::new(AtomicBool::new(false));
+        let child: ChildControl = Arc::new(Mutex::new(None));
+        let (sender, receiver) = mpsc::channel();
+        let shared = state.clone();
+        let flag = stop.clone();
+        let process = child.clone();
+        let initial = config.clone();
+        let thread = thread::Builder::new()
+            .name(format!("capture-{}", config.instance))
+            .spawn(move || {
+                let result = run(
+                    config,
+                    path,
+                    publisher,
+                    background,
+                    receiver,
+                    shared.clone(),
+                    flag,
+                    process,
+                    limit,
+                );
+                let mut shared = shared.lock().unwrap();
+                shared.finished = true;
+                if let Err(e) = result {
+                    shared.error = Some(format!("{e:#}"));
+                    shared.message = "Acquisition stopped".into();
+                } else {
+                    shared.message = "Acquisition stopped".into();
+                }
+            })?;
+        Ok(Self {
+            state,
+            stop,
+            sender,
+            child,
+            thread: Some(thread),
+            initial,
+        })
+    }
+    pub fn state(&self) -> State {
+        self.state.lock().unwrap().clone()
+    }
+    pub fn update(&self, config: &Config) -> Result<()> {
+        config.validate()?;
+        ensure!(
+            config.source == self.initial.source
+                && config.output == self.initial.output
+                && config.instance == self.initial.instance,
+            "Restart acquisition to apply source, instance, or output changes"
+        );
+        ensure!(
+            config.tracking.background_path == self.initial.tracking.background_path,
+            "Restart acquisition to apply the background path"
+        );
+        self.sender
+            .send(Command::Update(Box::new(config.clone())))
+            .context("Acquisition has stopped")
+    }
+    pub fn save_background(&self) -> Result<()> {
+        self.sender
+            .send(Command::SaveBackground)
+            .context("Acquisition has stopped")
+    }
+    pub fn record(&self, enabled: bool) -> Result<()> {
+        self.sender
+            .send(Command::Record(enabled))
+            .context("Acquisition has stopped")
+    }
+    pub fn load_background(&self) -> Result<()> {
+        self.sender
+            .send(Command::LoadBackground)
+            .context("Acquisition has stopped")
+    }
+    pub fn demo_background(&self) -> Result<()> {
+        self.sender
+            .send(Command::DemoBackground)
+            .context("Acquisition has stopped")
+    }
+    pub fn stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(child) = self.child.lock().unwrap().as_mut() {
+            let _ = child.kill();
+        }
+    }
+    pub fn is_finished(&self) -> bool {
+        self.thread.as_ref().is_none_or(|t| t.is_finished())
+    }
+    pub fn wait(mut self) {
+        self.stop();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+impl Drop for Engine {
+    fn drop(&mut self) {
+        self.stop();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run(
+    mut config: Config,
+    path: PathBuf,
+    mut publisher: Publisher,
+    mut background: Option<GrayFrame>,
+    commands: mpsc::Receiver<Command>,
+    state: Arc<Mutex<State>>,
+    stop: Arc<AtomicBool>,
+    child: ChildControl,
+    limit: Option<u64>,
+) -> Result<()> {
+    let mut source = source::open(&config, &path, child)?;
+    let (w, h, _) = config.source.dimensions();
+    let mut tracker = Tracker::new(&config, w, h);
+    let mut recorder = if config.recording.enabled {
+        Some(Recorder::start(&config, &path)?)
+    } else {
+        None
+    };
+    let mut draining: Vec<Recorder> = Vec::new();
+    let mut prior_recording_error: Option<String> = None;
+    let start = Instant::now();
+    let mut last = Instant::now();
+    let mut fps = 0.0;
+    let mut preview_at = Instant::now() - Duration::from_secs(1);
+    let mut frames = 0;
+    let mut dropped = 0;
+    let mut capture_bg = false;
+    state.lock().unwrap().message = "Live".into();
+    let processing_result: Result<()> = (|| {
+        while !stop.load(Ordering::Relaxed) {
+            for command in commands.try_iter() {
+                let result: Result<()> = match command {
+                    Command::Update(next) => {
+                        if next.tracking.subtract_background && background.is_none() {
+                            Err(anyhow::anyhow!(
+                                "Capture or load a background before enabling subtraction"
+                            ))
+                        } else {
+                            config = *next;
+                            tracker.update(&config);
+                            Ok(())
+                        }
+                    }
+                    Command::SaveBackground => {
+                        capture_bg = true;
+                        Ok(())
+                    }
+                    Command::Record(enabled) => {
+                        if enabled && recorder.as_ref().is_none_or(|r| !r.accepting()) {
+                            if let Some(old) = recorder.take() {
+                                draining.push(old);
+                            }
+                            Recorder::start(&config, &path).map(|r| {
+                                recorder = Some(r);
+                            })
+                        } else {
+                            if !enabled && let Some(r) = &mut recorder {
+                                r.request_stop();
+                            }
+                            Ok(())
+                        }
+                    }
+                    Command::LoadBackground => {
+                        let p = config.resolve(&path, &config.tracking.background_path);
+                        GrayFrame::load(&p).and_then(|bg| {
+                            ensure!(
+                                bg.width == w && bg.height == h,
+                                "Background dimensions must match camera"
+                            );
+                            background = Some(bg);
+                            Ok(())
+                        })
+                    }
+                    Command::DemoBackground => {
+                        if let crate::config::SourceConfig::Demo {
+                            width,
+                            height,
+                            fps,
+                            beat_hz,
+                        } = &config.source
+                        {
+                            let bg = DemoSource::new(*width, *height, *fps, *beat_hz).blank_frame();
+                            let result =
+                                bg.save(&config.resolve(&path, &config.tracking.background_path));
+                            if result.is_ok() {
+                                background = Some(bg);
+                            }
+                            result
+                        } else {
+                            Err(anyhow::anyhow!(
+                                "Clean simulated background is available only for the demo source"
+                            ))
+                        }
+                    }
+                };
+                let mut s = state.lock().unwrap();
+                s.background_loaded = background.is_some();
+                match result {
+                    Ok(()) => {
+                        s.message = "Live".into();
+                        s.error = None;
+                    }
+                    Err(e) => s.message = format!("{e:#}"),
+                }
+            }
+            let Some(raw) = source.next_frame(&stop)? else {
+                break;
+            };
+            if stop.load(Ordering::Relaxed) {
+                break;
+            }
+            if capture_bg {
+                match raw.save(&config.resolve(&path, &config.tracking.background_path)) {
+                    Ok(()) => {
+                        background = Some(raw.clone());
+                        let mut s = state.lock().unwrap();
+                        s.background_loaded = true;
+                        s.message =
+                            "Background saved; enable subtraction when the insect is in position"
+                                .into();
+                    }
+                    Err(e) => state.lock().unwrap().message = format!("Save background: {e:#}"),
+                }
+                capture_bg = false;
+            }
+            let raw = Arc::new(raw);
+            if let Some(r) = &mut recorder
+                && r.accepting()
+                && let Err(error) = r.submit(raw.clone())
+            {
+                eprintln!("{}: video recording stopped: {error:#}", config.instance);
+                state.lock().unwrap().message = format!("{error:#}");
+                // Closing the queue drains/finalizes on the writer. Capture
+                // continues while storage catches up; joining happens on exit.
+                r.request_stop();
+                state.lock().unwrap().recording = r.state();
+            }
+            let mut index = 0;
+            while index < draining.len() {
+                if draining[index].is_finished() {
+                    let mut old = draining.swap_remove(index);
+                    if let Err(error) = old.finish() {
+                        prior_recording_error = Some(format!("{error:#}"));
+                    }
+                } else {
+                    index += 1;
+                }
+            }
+            let elapsed = start.elapsed().as_nanos() as u64;
+            let now = Instant::now();
+            let dt = now.duration_since(last).as_secs_f32();
+            last = now;
+            if frames > 0 && dt > 0.0 {
+                fps = if fps == 0.0 {
+                    1.0 / dt
+                } else {
+                    1.0 / (0.95 / fps + 0.05 * dt)
+                };
+            }
+            let mut measurement = tracker.process(&raw, background.as_ref(), elapsed)?;
+            measurement.capture_fps = fps;
+            if !publisher.send(&measurement)? {
+                dropped += 1;
+            }
+            frames += 1;
+            let publish_preview = preview_at.elapsed()
+                >= Duration::from_secs_f64(1.0 / config.preview_fps as f64)
+                || frames == 1;
+            let foreground = if config.tracking.subtract_background && publish_preview {
+                background
+                    .as_ref()
+                    .map(|bg| raw.difference(bg))
+                    .transpose()?
+                    .map(Arc::new)
+            } else {
+                None
+            };
+            if publish_preview {
+                let snapshot = Arc::new(Snapshot {
+                    frame: raw,
+                    foreground,
+                    measurement,
+                });
+                let mut s = state.lock().unwrap();
+                s.latest = Some(snapshot);
+                s.frames = frames;
+                s.udp_dropped = dropped;
+                s.zmq_dropped = publisher.zmq_dropped();
+                if let Some(r) = &recorder {
+                    s.recording = r.state();
+                }
+                preview_at = Instant::now();
+            }
+            if limit.is_some_and(|limit| frames >= limit) {
+                break;
+            }
+        }
+        Ok(())
+    })();
+    let mut recording_result = if let Some(r) = &mut recorder {
+        r.finish()
+    } else {
+        Ok(())
+    };
+    for r in &mut draining {
+        if let Err(error) = r.finish() {
+            recording_result = Err(error);
+        }
+    }
+    let output_result = publisher.flush();
+    let mut s = state.lock().unwrap();
+    s.frames = frames;
+    s.udp_dropped = dropped;
+    s.zmq_dropped = publisher.zmq_dropped();
+    if let Some(r) = &recorder {
+        s.recording = r.state();
+    }
+    processing_result?;
+    recording_result?;
+    if let Some(error) = prior_recording_error {
+        anyhow::bail!(error);
+    }
+    output_result?;
+    Ok(())
+}
