@@ -92,7 +92,9 @@ fn missing_camera_falls_back_to_a_sample_only_when_allowed() {
     let mut config = Config::default();
     config.output.enabled = false;
     config.output.zmq_enabled = false;
-    config.source = camera_source(&config, "Rekke test camera that does not exist");
+    // A missing device path fails without asking the OS for camera access,
+    // so this test never waits on a permission prompt on CI.
+    config.source = camera_source(&config, "/nonexistent/rekke-test-camera");
     let path = PathBuf::from("unused-fallback.toml");
     // Experiments (headless, rigs) must fail loudly instead.
     let strict = Engine::start(config.clone(), path.clone(), Some(3)).unwrap();

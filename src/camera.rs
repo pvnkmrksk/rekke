@@ -264,8 +264,17 @@ mod native {
         height: u32,
         fps: u32,
     ) -> Result<(Box<dyn FrameSource>, String)> {
+        let selector = parse(device);
+        // A missing device path fails at once, without enumerating cameras
+        // (which can wait on an OS permission prompt).
+        if let Selector::Path(path) = &selector {
+            ensure!(
+                std::path::Path::new(path).exists(),
+                "Camera device {path} does not exist (unplugged?)"
+            );
+        }
         let cameras = list()?;
-        let selected = candidates(&parse(device), &cameras).map_err(|e| {
+        let selected = candidates(&selector, &cameras).map_err(|e| {
             if cameras.is_empty() {
                 anyhow::anyhow!("No camera found")
             } else {
