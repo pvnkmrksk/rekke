@@ -7,6 +7,7 @@ from pathlib import Path
 import plistlib
 import shutil
 import stat
+import struct
 import subprocess
 import tarfile
 import tempfile
@@ -57,6 +58,43 @@ def archive_zip(package, output):
     print(path)
 
 
+def verify_windows_runtime(binary):
+    """Reject a release that needs a separately installed MSVC runtime DLL."""
+    data = binary.read_bytes()
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    if data[pe:pe + 4] != b'PE\0\0':
+        raise ValueError('Windows release is not a PE executable')
+    count = struct.unpack_from('<H', data, pe + 6)[0]
+    optional_size = struct.unpack_from('<H', data, pe + 20)[0]
+    optional = pe + 24
+    magic = struct.unpack_from('<H', data, optional)[0]
+    if magic != 0x20b:
+        raise ValueError('Expected a 64-bit Windows executable')
+    imports_rva = struct.unpack_from('<I', data, optional + 112 + 8)[0]
+    sections = [struct.unpack_from('<IIII', data, optional + optional_size + i * 40 + 8)
+                for i in range(count)]
+
+    def offset(rva):
+        for virtual_size, address, raw_size, raw in sections:
+            if address <= rva < address + max(virtual_size, raw_size):
+                return raw + rva - address
+        raise ValueError(f'Invalid PE address: {rva}')
+
+    cursor = offset(imports_rva)
+    names = []
+    while True:
+        entry = struct.unpack_from('<IIIII', data, cursor)
+        if not any(entry):
+            break
+        name = offset(entry[3])
+        names.append(data[name:data.index(b'\0', name)].decode('ascii'))
+        cursor += 20
+    external = [name for name in names if name.upper().startswith(('VCRUNTIME', 'MSVCP', 'CONCRT'))]
+    if external:
+        raise ValueError(f'Windows release requires {external}; rebuild with +crt-static and an explicit target')
+    print('Windows runtime imports verified: ' + ', '.join(names))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', required=True, choices=['macos-arm64', 'macos-x64', 'linux-x64', 'windows-x64'])
@@ -66,6 +104,8 @@ def main():
     binary = args.binary.resolve()
     if not binary.is_file():
         parser.error(f'Missing executable: {binary}')
+    if args.platform.startswith('windows'):
+        verify_windows_runtime(binary)
     output = args.out.resolve()
     output.mkdir(parents=True, exist_ok=True)
     notices = dependency_notices()
@@ -110,7 +150,7 @@ def main():
                 'background': str(ROOT / 'assets/dmg-background.tiff'), 'icon': str(ROOT / 'assets/Rekke.icns'),
                 'window_rect': ((150, 150), (640, 420)), 'default_view': 'icon-view',
                 'icon_size': 96, 'text_size': 13, 'label_pos': 'bottom', 'arrange_by': None,
-                'icon_locations': {'Rekke.app': (180, 200), 'Applications': (460, 200), 'Install help.txt': (560, 340)},
+                'icon_locations': {'Rekke.app': (180, 200), 'Applications': (460, 200), 'Install help.txt': (560, 300)},
                 'hide_extensions': ['Install help.txt'],
                 'show_status_bar': False, 'show_tab_view': False, 'show_toolbar': False,
                 'show_pathbar': False, 'show_sidebar': False,

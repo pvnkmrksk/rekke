@@ -6,7 +6,7 @@
 
 A native Rust app for tracking the wings of a tethered insect, inspired by [Kinefly](https://github.com/ssafarik/Kinefly). It uses annular sectors, angular intensity profiles averaged over the radius, and edge detection. It runs independently of ROS and OpenCV.
 
-Version 0.5.0 includes Kinefly Docker-compatible ZMQ PUB output, one-command multi-rig launch, automatic marker/config persistence, lossless video recording on a dedicated worker, and an optional broad-shoulder wing filter that removes thin bright pulses. It retains native USB/webcam capture, symmetric directly draggable annular sectors, body-frame transforms and saved-background subtraction in a compact Kinefly-style GUI. Head/abdomen tracking, signal plots, a synthetic camera and FFmpeg video/network inputs are also available. Mac releases use a single drag-installable app, a wing icon and a one-line app-specific quarantine workaround.
+Version 0.5.1 includes Kinefly Docker-compatible ZMQ PUB output, one-command multi-rig launch, automatic marker/config persistence, lossless video recording on a dedicated worker, and an optional broad-shoulder wing filter that removes thin bright pulses. It retains native USB/webcam capture, symmetric directly draggable annular sectors, body-frame transforms and saved-background subtraction in a compact Kinefly-style GUI. Head/abdomen tracking, signal plots, a synthetic camera and FFmpeg video/network inputs are also available. Mac releases use a single drag-installable app, a wing icon and a one-line app-specific quarantine workaround.
 
 ## Install
 
@@ -14,10 +14,10 @@ Download a build from [GitHub Releases](https://github.com/pvnkmrksk/rekke/relea
 
 | Computer | Download | Installation |
 | --- | --- | --- |
-| Mac Apple Silicon | `Rekke-0.5.0-macos-arm64.dmg` | Drag Rekke.app into Applications |
-| Mac Intel | `Rekke-0.5.0-macos-x64.dmg` | Drag Rekke.app into Applications |
-| Ubuntu 22.04+ x86-64 | `rekke_0.5.0_amd64.deb` | `sudo apt install ./rekke_0.5.0_amd64.deb` |
-| Windows 10/11 x64 | `Rekke-0.5.0-windows-x64-setup.exe` | Run the installer; installs for your user |
+| Mac Apple Silicon | `Rekke-0.5.1-macos-arm64.dmg` | Drag Rekke.app into Applications |
+| Mac Intel | `Rekke-0.5.1-macos-x64.dmg` | Drag Rekke.app into Applications |
+| Ubuntu 22.04+ x86-64 | `rekke_0.5.1_amd64.deb` | `sudo apt install ./rekke_0.5.1_amd64.deb` |
+| Windows 10/11 x64 | `Rekke-0.5.1-windows-x64-setup.exe` | Run the installer; installs for your user |
 
 Portable ZIPs and a Linux tarball are available too. Run `rekke` (`rekke.exe` on Windows) from the extracted folder. No Python, ROS, OpenCV, FFmpeg or separate ZeroMQ runtime is needed for native webcam tracking. The optional live-plot helper needs Python/PyZMQ; video/network inputs use separately installed FFmpeg.
 
@@ -39,7 +39,7 @@ Alternatively, try opening once and use **System Settings → Privacy & Security
 
 ### Windows and Ubuntu
 
-The Windows installer adds Start-menu and desktop shortcuts, embeds the wing icon in the executable, and installs under `%LOCALAPPDATA%\Programs\Rekke`. User settings/backgrounds are in `%APPDATA%\Rekke\configs`. Uninstall removes program files and shortcuts while preserving user state. Windows builds are unsigned and may show SmartScreen; verify the release's origin before approving it.
+The Windows executable links its Visual C++ runtime statically, so no separate runtime installer is needed. The Windows installer adds Start-menu and desktop shortcuts, embeds the wing icon in the executable, and installs under `%LOCALAPPDATA%\Programs\Rekke`. User settings/backgrounds are in `%APPDATA%\Rekke\configs`. Uninstall removes program files and shortcuts while preserving user state. Windows builds are unsigned and may show SmartScreen; verify the release's origin before approving it.
 
 The Ubuntu `.deb` installs `rekke` on PATH and adds a Science-menu launcher/icon. Runtime dependencies are installed by `apt`. User state is under `${XDG_CONFIG_HOME:-~/.config}/rekke/configs`. The x86-64 build targets Ubuntu 22.04's glibc and is intended for 22.04 and newer. Camera device access follows normal OS/driver permissions.
 
@@ -80,7 +80,14 @@ cargo build --release --locked
 cargo run --release --locked -- --config configs/demo.toml
 ```
 
-`target/release/rekke` is the executable. Native webcam capture requires no FFmpeg, Python, ROS, OpenCV, or separate ZeroMQ runtime. The `camera` feature uses Nokhwa (AVFoundation on macOS, Media Foundation on Windows, V4L2 on Linux). A processing-only headless build is also available:
+For the same portable Windows release build used by CI (PowerShell):
+
+```powershell
+$env:RUSTFLAGS = '-C target-feature=+crt-static'
+cargo build --release --locked --target x86_64-pc-windows-msvc
+```
+
+The Windows binary is `target/x86_64-pc-windows-msvc/release/rekke.exe`; the normal native build uses `target/release/rekke`. Native webcam capture requires no FFmpeg, Python, ROS, OpenCV, or separate ZeroMQ runtime. The `camera` feature uses Nokhwa (AVFoundation on macOS, Media Foundation on Windows, V4L2 on Linux). A processing-only headless build is also available:
 
 ```sh
 cargo build --release --locked --no-default-features

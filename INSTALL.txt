@@ -25,13 +25,13 @@ https://support.apple.com/en-au/102445
 https://developer.apple.com/forums/thread/739357
 
 WINDOWS 10/11 X64
-Run Rekke-0.5.0-windows-x64-setup.exe. The installer uses your user account,
+Run Rekke-0.5.1-windows-x64-setup.exe. The installer uses your user account,
 adds desktop/Start-menu shortcuts and needs no administrator elevation.
 Config state is under %APPDATA%\Rekke\configs and survives uninstall.
 This unsigned build can show SmartScreen. Verify the download's origin.
 
 UBUNTU 22.04+ X86-64
-    sudo apt install ./rekke_0.5.0_amd64.deb
+    sudo apt install ./rekke_0.5.1_amd64.deb
 Open Rekke from the Science/app menu or run: rekke
 Configs live under ~/.config/rekke/configs (or XDG_CONFIG_HOME/rekke/configs).
 

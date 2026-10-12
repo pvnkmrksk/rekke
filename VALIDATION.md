@@ -1,6 +1,6 @@
-# Validation — Rekke 0.5.0
+# Validation — Rekke 0.5.1
 
-On macOS ARM64, Rekke 0.5.0 passes **57 default-feature tests**, **54 processing-only tests**, formatting, and Clippy (`--all-targets -- -D warnings`). The upstream `block 0.1.6` future-compatibility notice remains.
+Before the Windows runtime packaging fix, Rekke 0.5.0 on macOS ARM64 passed **57 default-feature tests**, **54 processing-only tests**, formatting, and Clippy (`--all-targets -- -D warnings`). The upstream `block 0.1.6` future-compatibility notice remains.
 
 The [Build and release workflow](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml) runs formatting, Clippy with warnings denied, both default-feature and processing-only tests, and native release builds on Ubuntu 22.04 x64, Windows 2022 x64, macOS ARM64 and macOS Intel. All four builds must pass before the release publishes.
 

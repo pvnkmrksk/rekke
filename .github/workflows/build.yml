@@ -19,6 +19,7 @@ jobs:
           - os: windows-2022
             platform: windows-x64
             binary: rekke.exe
+            release_dir: target/x86_64-pc-windows-msvc/release
           - os: macos-15
             platform: macos-arm64
             binary: rekke
@@ -56,8 +57,14 @@ jobs:
       - run: cargo test --locked
       - run: cargo test --locked --no-default-features
       - run: cargo build --release --locked
+        if: runner.os != 'Windows'
+      - name: Windows portable release
+        if: runner.os == 'Windows'
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
       - name: Package
-        run: python scripts/package.py --platform ${{ matrix.platform }} --binary target/release/${{ matrix.binary }} --out dist
+        run: python scripts/package.py --platform ${{ matrix.platform }} --binary ${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }} --out dist
       - name: Ubuntu install and GUI smoke
         if: runner.os == 'Linux'
         run: |
