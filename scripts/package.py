@@ -14,7 +14,7 @@ import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text())['package']['version']
+VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['package']['version']
 DOCS = ['README.md', 'INSTALL.txt', 'VALIDATION.md', 'LICENSE']
 
 
@@ -24,12 +24,12 @@ def common(destination, notices):
         shutil.copy2(ROOT / name, destination / name)
     shutil.copytree(ROOT / 'configs', destination / 'configs', ignore=shutil.ignore_patterns('*.png', '*.jsonl', 'recordings'))
     shutil.copytree(ROOT / 'examples', destination / 'examples', ignore=shutil.ignore_patterns('__pycache__'))
-    (destination / 'THIRD_PARTY_NOTICES.txt').write_text(notices)
+    (destination / 'THIRD_PARTY_NOTICES.txt').write_text(notices, encoding='utf-8')
 
 
 def dependency_notices():
     cargo = os.environ.get('REKKE_CARGO', 'cargo')
-    metadata = json.loads(subprocess.check_output([cargo, 'metadata', '--locked', '--offline', '--format-version', '1', '--manifest-path', str(ROOT / 'Cargo.toml')], text=True))
+    metadata = json.loads(subprocess.check_output([cargo, 'metadata', '--locked', '--offline', '--format-version', '1', '--manifest-path', str(ROOT / 'Cargo.toml')], text=True, encoding='utf-8'))
     notices = ['Rekke third-party dependency notices\nFull Cargo dependency set, including target-specific dependencies.\n']
     for dependency in sorted(metadata['packages'], key=lambda p: (p['name'], p['version'])):
         if dependency['name'] == 'rekke':
