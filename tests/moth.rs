@@ -94,7 +94,6 @@ struct Agreement {
     correlation: f32,
     median: f32,
     p95: f32,
-    over_15: usize,
     over_30: usize,
     missing: usize,
 }
@@ -130,7 +129,6 @@ fn agreement(left: &[Option<f32>], right: &[Option<f32>]) -> Agreement {
         correlation: slr / (sl * sr).sqrt(),
         median: at(0.5),
         p95: at(0.95),
-        over_15: deviation.iter().filter(|d| **d > 15.0).count(),
         over_30: deviation.iter().filter(|d| **d > 30.0).count(),
         missing: left.len() - pairs.len(),
     }
@@ -483,25 +481,6 @@ fn perturbation_table() {
                 };
                 moved += usize::from(d > 5.0);
                 clear_moved += usize::from(d > 5.0 && clear[k]);
-                if d > 5.0
-                    && clear[k]
-                    && kind == "brighter"
-                    && method == Method::WingBlur
-                    && cap == 0.12
-                {
-                    if let Some(dir) = std::env::var_os("REKKEFLY_MOTH_OUT") {
-                        let dir = std::path::PathBuf::from(dir);
-                        for (tag, frame, meas) in
-                            [("a", f.clone(), m.clone()), ("b", g.clone(), n.clone())]
-                        {
-                            let png = rekkefly::overlay::render(&frame, &c, Some(&meas))
-                                .to_png()
-                                .unwrap();
-                            std::fs::write(dir.join(format!("gain-{}-{tag}.png", k * 3)), png)
-                                .unwrap();
-                        }
-                    }
-                }
             }
             println!(
                 "  {kind:13} L−R moved >5° in {moved}/{}; on {} unambiguous frames {clear_moved}",
