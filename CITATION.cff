@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use Rekkefly in your research, please cite it as below."
+title: "Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects"
+type: software
+authors:
+  - name: "pvnkmrksk"
+version: 0.6.0
+license: MIT
+repository-code: "https://github.com/pvnkmrksk/rekke"
+keywords:
+  - Kinefly
+  - insect flight
+  - tethered flight
+  - Drosophila
+  - wing beat amplitude
+  - wing tracking
+  - closed-loop behaviour
+  - neuroscience

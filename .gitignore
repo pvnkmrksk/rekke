@@ -3,10 +3,12 @@
 *.background.png
 *.jsonl
 *.avi
+!/samples/*.avi
+.*.toml.lock
 /recordings/
 /configs/recordings/
 __pycache__/
 .DS_Store
-/rekke.toml
+/rekkefly.toml
 /wingtrace.toml
 .env

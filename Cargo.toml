@@ -1,8 +1,10 @@
 [package]
-name = "rekke"
-version = "0.5.1"
+name = "rekkefly"
+version = "0.6.0"
 edition = "2024"
-description = "Configurable, multi-instance insect wing kinematics tracker"
+description = "Rekkefly, the new Kinefly: real-time wing tracking for tethered insects, with Kinefly-compatible ZMQ output"
+keywords = ["kinefly", "insect-flight", "drosophila", "wing-tracking", "neuroscience"]
+categories = ["science", "computer-vision", "multimedia::video"]
 license = "MIT"
 repository = "https://github.com/pvnkmrksk/rekke"
 homepage = "https://github.com/pvnkmrksk/rekke"
@@ -11,7 +13,7 @@ readme = "README.md"
 [features]
 default = ["gui", "camera"]
 gui = ["dep:eframe"]
-camera = ["dep:nokhwa"]
+camera = ["dep:nokhwa", "dep:v4l"]
 
 [dependencies]
 anyhow = "1"
@@ -20,19 +22,37 @@ ctrlc = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
+toml_edit = { version = "0.22", default-features = false, features = ["parse", "display"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
 nokhwa = { version = "0.10.10", default-features = false, features = ["input-native", "decoding"], optional = true }
 zeromq = { version = "0.6", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
 tokio = { version = "1", features = ["rt", "sync", "time", "net"] }
 tempfile = "3"
+jpeg-encoder = { version = "0.7", features = ["simd"] }
+zune-jpeg = "0.5"
+zune-core = "0.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+v4l = { version = "0.14", optional = true }
+
+# Image codecs are far too slow unoptimized; keep them fast in debug builds
+# and tests (the Bogong moth tests decode real MJPEG video).
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.jpeg-encoder]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
 
 [[bin]]
-name = "rekke"
+name = "rekkefly"
 path = "src/main.rs"
 
 [target.'cfg(windows)'.build-dependencies]

@@ -1,0 +1,23 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024' viewBox='0 0 1024 1024'><defs><linearGradient id='itile' x1='0' y1='0' x2='0.6' y2='1'><stop offset='0' stop-color='#f4f8f5'/><stop offset='1' stop-color='#d3e3de'/></linearGradient>
+<clipPath id='iclip'><rect x='100' y='100' width='824' height='824' rx='186.0'/></clipPath>
+<filter id='ishadow' x='-10%' y='-10%' width='120%' height='125%'><feGaussianBlur in='SourceAlpha' stdDeviation='14.0'/><feOffset dy='14.0'/><feComponentTransfer><feFuncA type='linear' slope='0.3'/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in='SourceGraphic'/></feMerge></filter></defs><g filter="url(#ishadow)"><rect x='100' y='100' width='824' height='824' rx='186.0' fill='url(#itile)'/></g><g clip-path='url(#iclip)'><radialGradient id='ienv0' gradientUnits='userSpaceOnUse' cx='472.0' cy='500.0' r='288.0'><stop offset='0' stop-color='#1f5c66' stop-opacity='0.04'/><stop offset='0.55' stop-color='#1f5c66' stop-opacity='0.26'/><stop offset='0.88' stop-color='#1f5c66' stop-opacity='0.30'/><stop offset='1' stop-color='#1f5c66' stop-opacity='0.10'/></radialGradient>
+<path d='M472.0 500.0L319.4 744.2A288.0 288.0 0 0 1 294.7 273.1Z' fill='url(#ienv0)'/>
+<path d='M472.0 500.0L261.4 303.6A288.0 288.0 0 0 1 294.7 273.1Z' fill='url(#ienv0)'/>
+<path d='M472.0 500.0L319.4 744.2A288.0 288.0 0 0 1 283.1 717.4Z' fill='url(#ienv0)'/>
+<radialGradient id='ienv1' gradientUnits='userSpaceOnUse' cx='552.0' cy='500.0' r='288.0'><stop offset='0' stop-color='#1f5c66' stop-opacity='0.04'/><stop offset='0.55' stop-color='#1f5c66' stop-opacity='0.26'/><stop offset='0.88' stop-color='#1f5c66' stop-opacity='0.30'/><stop offset='1' stop-color='#1f5c66' stop-opacity='0.10'/></radialGradient>
+<path d='M552.0 500.0L729.3 273.1A288.0 288.0 0 0 1 704.6 744.2Z' fill='url(#ienv1)'/>
+<path d='M552.0 500.0L740.9 717.4A288.0 288.0 0 0 1 704.6 744.2Z' fill='url(#ienv1)'/>
+<path d='M552.0 500.0L729.3 273.1A288.0 288.0 0 0 1 762.6 303.6Z' fill='url(#ienv1)'/>
+<path d='M398.1 405.4L286.1 262.0' stroke='#ff7059' stroke-width='13.0' stroke-linecap='round'/>
+<path d='M625.9 405.4L737.9 262.0' stroke='#ff7059' stroke-width='13.0' stroke-linecap='round'/>
+<ellipse cx='512.0' cy='628.0' rx='40.0' ry='96.0' fill='#122329'/>
+<path d='M476.0 588.0Q512.0 598.0 548.0 588.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M479.0 614.0Q512.0 624.0 545.0 614.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M482.0 640.0Q512.0 650.0 542.0 640.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M485.0 666.0Q512.0 676.0 539.0 666.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<ellipse cx='512.0' cy='500.0' rx='54.0' ry='70.0' fill='#122329'/>
+<ellipse cx='512.0' cy='400.0' rx='50.0' ry='38.0' fill='#122329'/>
+<ellipse cx='482.0' cy='396.0' rx='22.0' ry='28.0' fill='#8a2e27' opacity='0.9'/>
+<ellipse cx='542.0' cy='396.0' rx='22.0' ry='28.0' fill='#8a2e27' opacity='0.9'/>
+<circle cx='472.0' cy='500.0' r='11.0' fill='#ff7059'/>
+<circle cx='552.0' cy='500.0' r='11.0' fill='#ff7059'/></g><rect x='102.0' y='102.0' width='820.0' height='820.0' rx='184.0' fill='none' stroke='#000000' stroke-opacity='0.08' stroke-width='4.0'/></svg>

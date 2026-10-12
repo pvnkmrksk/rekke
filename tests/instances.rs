@@ -1,4 +1,4 @@
-use rekke::{config::Config, engine::Engine, tracker::Measurement};
+use rekkefly::{config::Config, engine::Engine, tracker::Measurement};
 use std::{net::UdpSocket, path::PathBuf, time::Duration};
 fn sender_address() -> String {
     let s = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -46,12 +46,8 @@ fn conflicting_sender_port_fails_with_a_clear_error() {
 }
 #[test]
 fn background_is_saved_and_reloaded_without_global_state() {
-    let temp = std::env::temp_dir().join(format!(
-        "rekke-bg-{}-{}",
-        std::process::id(),
-        rekke::frame::unix_ns()
-    ));
-    std::fs::create_dir_all(&temp).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let temp = dir.path().to_path_buf();
     let path = temp.join("rig.toml");
     let mut c = Config::demo();
     c.output.enabled = false;
@@ -75,14 +71,13 @@ fn background_is_saved_and_reloaded_without_global_state() {
     assert!(state.error.is_none(), "{:?}", state.error);
     assert!(state.latest.unwrap().measurement.background_subtracted);
     engine.wait();
-    std::fs::remove_dir_all(temp).unwrap();
 }
 #[test]
 fn threshold_and_enable_changes_apply_without_restarting_capture() {
     let mut c = Config::demo();
     c.output.enabled = false;
     let engine = Engine::start(c.clone(), PathBuf::from("unused-live.toml"), None).unwrap();
-    let wait = |condition: &dyn Fn(&rekke::engine::State) -> bool| {
+    let wait = |condition: &dyn Fn(&rekkefly::engine::State) -> bool| {
         let start = std::time::Instant::now();
         while start.elapsed() < Duration::from_secs(5) {
             let state = engine.state();
@@ -130,7 +125,7 @@ fn video_recording_can_start_stop_and_restart_without_reopening_capture() {
     config.output.enabled = false;
     config.recording.directory = "recordings".into();
     let engine = Engine::start(config, directory.path().join("rig.toml"), None).unwrap();
-    let wait = |predicate: &dyn Fn(&rekke::engine::State) -> bool| {
+    let wait = |predicate: &dyn Fn(&rekkefly::engine::State) -> bool| {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         loop {
             let state = engine.state();

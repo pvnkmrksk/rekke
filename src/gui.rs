@@ -1,6 +1,7 @@
 use crate::{
-    config::{Config, Method, Point, PrimaryEdge, SourceConfig},
-    engine::{Engine, Snapshot, State},
+    avi::VideoFormat,
+    config::{Config, Method, Overrides, Point, PrimaryEdge, SourceConfig},
+    engine::{Engine, Snapshot, StartOptions, State},
     geometry::{self, Handle, move_handle},
     persistence::Autosaver,
     tracker::NAMES,
@@ -79,10 +80,18 @@ fn handles(config: &Config) -> Vec<(Handle, Point, Color32)> {
     points
 }
 pub struct App {
+    /// The effective configuration: the saved file plus this run's overrides.
     config: Config,
+    /// The file's values for fields that `overrides` replaces.
+    saved: Config,
+    overrides: Overrides,
+    /// The rig's own markers and sectors while the sample plays with the
+    /// example's; restored on restart. The example's are never saved.
+    rig: Option<Config>,
     path: PathBuf,
     engine: Option<Engine>,
-    limit: Option<u64>,
+    options: StartOptions,
+    title: String,
     selected: usize,
     texture: Option<egui::TextureHandle>,
     latest: Option<Arc<Snapshot>>,
@@ -100,6 +109,7 @@ pub struct App {
     cameras: Vec<String>,
     camera_query: Option<mpsc::Receiver<Result<Vec<String>, String>>>,
     screenshot: Option<PathBuf>,
+    screenshot_after: Duration,
     screenshot_requested: bool,
     started: Instant,
     autosaver: Option<Autosaver>,
@@ -107,7 +117,7 @@ pub struct App {
     shutdown: Arc<AtomicBool>,
 }
 fn app_icon() -> egui::IconData {
-    let icon = image::load_from_memory(include_bytes!("../assets/rekke-64.png"))
+    let icon = image::load_from_memory(include_bytes!("../assets/rekkefly-64.png"))
         .expect("Bundled app icon")
         .into_rgba8();
     egui::IconData {
@@ -116,23 +126,69 @@ fn app_icon() -> egui::IconData {
         rgba: icon.into_raw(),
     }
 }
-pub fn launch(
-    config: Config,
-    path: PathBuf,
-    limit: Option<u64>,
-    screenshot: Option<PathBuf>,
-    shutdown: Arc<AtomicBool>,
-) -> eframe::Result<()> {
-    let title = format!("Rekke · {}", config.instance);
+/// Everything the GUI needs to start one instance.
+pub struct Launch {
+    /// The configuration as stored in `path`.
+    pub saved: Config,
+    /// This run's temporary settings (command line, rig manifest, video).
+    pub overrides: Overrides,
+    pub path: PathBuf,
+    pub options: StartOptions,
+    pub screenshot: Option<PathBuf>,
+    /// When to take the screenshot after the window opens.
+    pub screenshot_after: Duration,
+    /// Panels to open at start: "settings", "plots".
+    pub panels: Vec<String>,
+    pub shutdown: Arc<AtomicBool>,
+}
+fn window_title(config: &Config) -> String {
+    let source = match &config.source {
+        SourceConfig::Camera { device, .. } => format!("camera {device}"),
+        SourceConfig::Video { path, .. } => std::path::Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "video".into()),
+        SourceConfig::Network { .. } => "stream".into(),
+        SourceConfig::Demo { .. } => "simulated fly".into(),
+    };
+    let port = if config.output.zmq_enabled {
+        config
+            .output
+            .zmq_bind
+            .rsplit_once(':')
+            .map(|(_, p)| format!(" · ZMQ {p}"))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    format!("Rekkefly · {} · {source}{port}", config.instance)
+}
+pub fn launch(launch: Launch) -> eframe::Result<()> {
+    let Launch {
+        saved,
+        overrides,
+        path,
+        options: start_options,
+        screenshot,
+        screenshot_after,
+        panels,
+        shutdown,
+    } = launch;
+    let config = overrides.apply(&saved);
+    let title = window_title(&config);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_title(&title)
+            .with_app_id("rekkefly")
             .with_inner_size([1000.0, 820.0])
             .with_min_inner_size([720.0, 550.0])
+            .with_drag_and_drop(true)
             .with_icon(app_icon()),
         ..Default::default()
     };
+    let app_title = title.clone();
     eframe::run_native(
-        &title,
+        &app_title,
         options,
         Box::new(move |cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
@@ -148,9 +204,13 @@ pub fn launch(
                 last_autosave: config.clone(),
                 shutdown,
                 config,
+                saved,
+                overrides,
+                rig: None,
                 path,
                 engine: None,
-                limit,
+                options: start_options,
+                title,
                 selected: 0,
                 texture: None,
                 latest: None,
@@ -160,14 +220,15 @@ pub fn launch(
                 drag: None,
                 last_wing: 0,
                 show_difference: false,
-                show_settings: false,
-                show_diagnostics: false,
+                show_settings: panels.iter().any(|p| p == "settings"),
+                show_diagnostics: panels.iter().any(|p| p == "plots"),
                 dirty: false,
                 status: String::new(),
                 restart_pending: false,
                 cameras: Vec::new(),
                 camera_query: None,
                 screenshot,
+                screenshot_after,
                 screenshot_requested: false,
                 started: Instant::now(),
             };
@@ -177,8 +238,24 @@ pub fn launch(
     )
 }
 impl App {
+    /// Put the rig's own markers and sectors back after the example played.
+    /// Other edits made meanwhile (source, outputs) are kept.
+    fn restore_rig(&mut self) {
+        if let Some(rig) = self.rig.take() {
+            for c in [&mut self.config, &mut self.last_autosave] {
+                c.head = rig.head;
+                c.tail = rig.tail;
+                c.tracking = rig.tracking.clone();
+            }
+        }
+    }
     fn start(&mut self) {
-        match Engine::start(self.config.clone(), self.path.clone(), self.limit) {
+        self.restore_rig();
+        let options = StartOptions {
+            video_markers: matches!(self.overrides.source, Some(SourceConfig::Video { .. })),
+            ..self.options.clone()
+        };
+        match Engine::start_with(self.config.clone(), self.path.clone(), options) {
             Ok(engine) => {
                 self.engine = Some(engine);
                 self.latest = None;
@@ -199,18 +276,28 @@ impl App {
             self.status = format!("{error:#}");
         }
     }
+    /// The configuration to write: GUI edits without this run's overrides.
+    fn persistable(&self) -> Config {
+        self.overrides.persistable(&self.config, &self.saved)
+    }
     fn save(&mut self) {
+        if self.rig.is_some() {
+            self.status =
+                "The example's markers are not saved; Retry camera to edit your rig".into();
+            return;
+        }
+        let config = self.persistable();
         if let Some(saver) = &self.autosaver {
-            match self.config.validate() {
+            match config.validate() {
                 Ok(()) => {
-                    saver.save_now(self.config.clone());
+                    saver.save_now(config);
                     self.status = "Saving configuration…".into();
                 }
                 Err(error) => self.status = format!("{error:#}"),
             }
             return;
         }
-        match self.config.save(&self.path) {
+        match config.save(&self.path) {
             Ok(()) => {
                 self.dirty = false;
                 self.status = "Configuration saved".into();
@@ -228,6 +315,12 @@ impl App {
         }
     }
     fn observe(&mut self, ctx: &egui::Context, state: &State) {
+        if let Some(example) = &state.example
+            && self.rig.is_none()
+        {
+            self.rig = Some(std::mem::replace(&mut self.config, example.clone()));
+            self.last_autosave = self.config.clone();
+        }
         let Some(s) = &state.latest else {
             return;
         };
@@ -271,7 +364,7 @@ impl App {
         let mut changed = false;
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new("rekke").strong().size(16.0));
+                ui.label(egui::RichText::new("rekkefly").strong().size(16.0));
                 ui.separator();
                 if ui.add_enabled(self.latest.is_some() && !state.finished, egui::Button::new("Save BG"))
                     .on_hover_text("Save the next camera frame as the background. Capture an empty scene first.").clicked()
@@ -298,9 +391,11 @@ impl App {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.toggle_value(&mut self.show_settings, "Settings");
-                    if ui.add_enabled(self.engine.as_ref().is_some_and(|e| !e.is_finished()), egui::Button::new(if state.recording.active { "Stop REC" } else { "Record" })).on_hover_text("Lossless grayscale video; no overlay, dedicated disk writer").clicked() {
-                        let record = !state.recording.active;
-                        if let Some(e) = &self.engine { match e.record(record) { Ok(()) => { self.config.recording.enabled = record; changed = true; }, Err(error) => self.status = format!("{error:#}") } }
+                    // Rigs started by the launcher are managed as a set; no extra windows there.
+                    if self.options.fallback && ui.button("New window").on_hover_text("Open another Rekkefly window for the next rig config (its own camera and ports)").clicked() { self.new_window(); }
+                    if ui.add_enabled(self.engine.as_ref().is_some_and(|e| !e.is_finished()), egui::Button::new(if state.recording.active { "Stop REC" } else { "Record" })).on_hover_text(format!("Record the camera image (no overlay) as {} on a dedicated writer. Settings → Video to change.", self.config.recording.format.label())).clicked() {
+                        // A run-time toggle: never saved, so the next launch does not start recording by surprise.
+                        if let Some(e) = &self.engine && let Err(error) = e.record(!state.recording.active) { self.status = format!("{error:#}"); }
                     }
                     if ui.button(if self.dirty { "Save •" } else { "Save" }).on_hover_text("Save this instance's configuration").clicked() { self.save(); }
                     let running = self.engine.as_ref().is_some_and(|e| !e.is_finished());
@@ -320,7 +415,7 @@ impl App {
                 }
                 ui.separator();
                 let mut reject = self.config.tracking.left.method == Method::WingBlur && self.config.tracking.right.method == Method::WingBlur;
-                if ui.checkbox(&mut reject, "Reject spikes").on_hover_text("Both wings: ignore thin bright pulses and track a broad faint shoulder. Tune width in Settings.").changed() {
+                if ui.checkbox(&mut reject, "Ignore legs").on_hover_text("Robust wing edges for both wings: legs, antennae and other thin dark features are ignored (recommended). Off: classic strongest edge. Tune in Settings.").changed() {
                     self.config.tracking.left.method = if reject { Method::WingBlur } else { Method::Edge };
                     self.config.tracking.right.method = if reject { Method::WingBlur } else { Method::Edge };
                     changed = true;
@@ -351,14 +446,14 @@ impl App {
                 let old = self.config.sectors()[self.selected].clone();
                 let mut edited = old.clone();
                 let s = &mut edited;
-                egui::ComboBox::from_label("Detector").selected_text(match s.method { Method::Edge => "Strongest edge", Method::WingBlur => "Wing blur · experimental", Method::Centroid => "Centroid" }).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut s.method, Method::Edge, "Strongest edge");
-                    ui.selectable_value(&mut s.method, Method::WingBlur, "Wing blur · experimental");
+                egui::ComboBox::from_label("Detector").selected_text(match s.method { Method::Edge => "Classic strongest edge", Method::WingBlur => "Robust · ignores legs & antennae", Method::Centroid => "Centroid" }).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut s.method, Method::WingBlur, "Robust · ignores legs & antennae");
+                    ui.selectable_value(&mut s.method, Method::Edge, "Classic strongest edge");
                     ui.selectable_value(&mut s.method, Method::Centroid, "Centroid");
                 });
                 if s.method == Method::WingBlur {
-                    ui.horizontal(|ui| { ui.label("Reject pulses under"); ui.add(egui::DragValue::new(&mut s.spike_width_deg).range(0.0..=45.0).speed(0.1).suffix("°")); });
-                    ui.small("Remove narrow bright pulses, then find the median edge across radial bands. Keep width smaller than the wing shoulder; broad obstructions can still win.");
+                    ui.horizontal(|ui| { ui.label("Ignore features narrower than"); ui.add(egui::DragValue::new(&mut s.spike_width_deg).range(0.0..=45.0).speed(0.1).suffix("°")); });
+                    ui.small("Thin dark features (legs, antennae) are removed per radial band, then the median edge across bands is used. Keep this narrower than the wing's blur.");
                     ui.horizontal(|ui| { ui.label("Contrast cap"); ui.add(egui::DragValue::new(&mut s.contrast_cap).range(0.001..=1.0).speed(0.001).fixed_decimals(3)); });
                 }
                 if s.method != Method::Centroid {
@@ -402,12 +497,15 @@ impl App {
                 });
                 egui::CollapsingHeader::new("Camera / input").show(ui, |ui| { self.source_controls(ui); });
                 egui::CollapsingHeader::new("Instance / output").show(ui, |ui| {
-                    ui.label("Instance"); self.dirty |= ui.text_edit_singleline(&mut self.config.instance).changed();
-                    self.dirty |= ui.checkbox(&mut self.config.output.zmq_enabled, "ZMQ · Kinefly bridge format").changed();
-                    ui.label("ZMQ publisher bind"); self.dirty |= ui.text_edit_singleline(&mut self.config.output.zmq_bind).changed();
-                    self.dirty |= ui.checkbox(&mut self.config.output.enabled, "UDP · full measurement JSON").changed();
-                    ui.label("Unique sender bind"); self.dirty |= ui.text_edit_singleline(&mut self.config.output.bind).changed();
-                    ui.label("Receiver target"); self.dirty |= ui.text_edit_singleline(&mut self.config.output.target).changed();
+                    let o = &self.overrides;
+                    let (label_free, zmq_free, udp_free) = (o.label.is_none(), o.zmq_port.is_none(), o.udp_port.is_none() && o.udp_target.is_none());
+                    if !(label_free && zmq_free && udp_free) { ui.small("Greyed fields are set for this run by the rig launcher or command line."); }
+                    ui.label("Instance label"); self.dirty |= ui.add_enabled(label_free, egui::TextEdit::singleline(&mut self.config.instance)).changed();
+                    self.dirty |= ui.add_enabled(zmq_free, egui::Checkbox::new(&mut self.config.output.zmq_enabled, "ZMQ · Kinefly bridge format")).changed();
+                    ui.label("ZMQ publisher bind"); self.dirty |= ui.add_enabled(zmq_free, egui::TextEdit::singleline(&mut self.config.output.zmq_bind)).changed();
+                    self.dirty |= ui.add_enabled(udp_free, egui::Checkbox::new(&mut self.config.output.enabled, "UDP · full measurement JSON")).changed();
+                    ui.label("Unique sender bind"); self.dirty |= ui.add_enabled(udp_free, egui::TextEdit::singleline(&mut self.config.output.bind)).changed();
+                    ui.label("Receiver target"); self.dirty |= ui.add_enabled(udp_free, egui::TextEdit::singleline(&mut self.config.output.target)).changed();
                     ui.label("JSONL recording (empty = off)"); self.dirty |= ui.text_edit_singleline(&mut self.config.output.jsonl_path).changed();
                     ui.small("Restart to apply source, instance or output changes.");
                 });
@@ -415,9 +513,17 @@ impl App {
                     self.dirty |= ui.checkbox(&mut self.config.autosave, "Automatically save configuration").changed();
                     ui.small("Marker edits are saved after 300 ms idle and on close. The saved background reloads automatically.");
                     ui.label("Recording directory"); changed |= ui.text_edit_singleline(&mut self.config.recording.directory).changed();
+                    egui::ComboBox::from_label("Video format").selected_text(self.config.recording.format.label()).show_ui(ui, |ui| {
+                        for format in [VideoFormat::Mjpeg, VideoFormat::Png, VideoFormat::Raw] {
+                            changed |= ui.selectable_value(&mut self.config.recording.format, format, format.label()).changed();
+                        }
+                    });
+                    if self.config.recording.format == VideoFormat::Mjpeg {
+                        ui.horizontal(|ui| { ui.label("Quality"); changed |= ui.add(egui::Slider::new(&mut self.config.recording.quality, 50..=100)).changed(); });
+                    }
                     ui.horizontal(|ui| { ui.label("Queue frames"); changed |= ui.add(egui::DragValue::new(&mut self.config.recording.queue_frames).range(1..=256)).changed(); });
                     ui.horizontal(|ui| { ui.label("Segment MiB"); changed |= ui.add(egui::DragValue::new(&mut self.config.recording.segment_mb).range(16..=1900)).changed(); });
-                    ui.small("Lossless grayscale AVI. Settings apply to the next recording session. Fast storage required; queue overflow stops recording visibly.");
+                    ui.small("Grayscale AVI. MJPEG is 10–20× smaller than raw and plays in VLC and in Rekkefly; PNG and raw are bit-exact. Applies to the next recording. A full queue stops recording visibly.");
                     if let Some(path) = &state.recording.directory { ui.small(path.display().to_string()); }
                 });
                 egui::CollapsingHeader::new("Sampling").show(ui, |ui| {
@@ -429,7 +535,7 @@ impl App {
                 ui.horizontal(|ui| {
                     if ui.button("Restart acquisition").clicked() { self.request_restart(); }
                     if ui.button("Reload config").clicked() {
-                        match Config::load(&self.path) { Ok(c) => { self.config = c; self.dirty = false; self.request_restart(); }, Err(e) => self.status = format!("{e:#}") }
+                        match Config::load(&self.path) { Ok(c) => { self.config = self.overrides.apply(&c); self.saved = c; self.last_autosave = self.config.clone(); self.dirty = false; self.request_restart(); }, Err(e) => self.status = format!("{e:#}") }
                     }
                 });
                 if let Some(error) = &state.error { ui.colored_label(COLORS[0], error); }
@@ -670,6 +776,34 @@ impl App {
         }
     }
     fn source_controls(&mut self, ui: &mut egui::Ui) {
+        if self.overrides.source.is_some() {
+            ui.small(format!(
+                "This run uses a temporary source: {}. Your saved source is unchanged.",
+                self.overrides.note.as_deref().unwrap_or("set at launch")
+            ));
+            ui.horizontal(|ui| {
+                if ui.button("Back to saved source").clicked() {
+                    self.use_source(None, None);
+                }
+                if ui
+                    .button("Save as this config's source")
+                    .on_hover_text("Make this source permanent for this config")
+                    .clicked()
+                {
+                    self.saved.source = self.config.source.clone();
+                    self.overrides.source = None;
+                    self.overrides.note = None;
+                    self.dirty = true;
+                    self.last_autosave.source = SourceConfig::Demo {
+                        width: 0,
+                        height: 0,
+                        fps: 0,
+                        beat_hz: 0.0,
+                    };
+                }
+            });
+            return;
+        }
         let (mut w, mut h, mut fps) = self.config.source.dimensions();
         let mut kind = match self.config.source {
             SourceConfig::Demo { .. } => 0,
@@ -682,9 +816,9 @@ impl App {
             .selected_text(self.config.source.label())
             .show_ui(ui, |ui| {
                 for (i, name) in [
-                    "Simulated camera",
+                    "Simulated fly",
                     "USB camera",
-                    "Video replay (FFmpeg)",
+                    "Video file",
                     "Network stream (FFmpeg)",
                 ]
                 .into_iter()
@@ -706,7 +840,8 @@ impl App {
                     width: w,
                     height: h,
                     fps: 30,
-                    repeat: false,
+                    repeat: true,
+                    realtime: true,
                 },
                 3 => SourceConfig::Network {
                     url: String::new(),
@@ -717,8 +852,8 @@ impl App {
                 _ => SourceConfig::Demo {
                     width: w,
                     height: h,
-                    fps: 120,
-                    beat_hz: 8.0,
+                    fps: 60,
+                    beat_hz: 0.8,
                 },
             };
             self.dirty = true;
@@ -726,13 +861,26 @@ impl App {
         }
         match &mut self.config.source {
             SourceConfig::Camera { device, .. } => {
-                ui.label("Camera: auto, index or device path");
+                ui.label(
+                    "Camera: auto, a number from the list below, a device path or part of its name",
+                );
                 self.dirty |= ui.text_edit_singleline(device).changed();
             }
-            SourceConfig::Video { path, repeat, .. } => {
-                ui.label("Video path (relative to config)");
+            SourceConfig::Video {
+                path,
+                repeat,
+                realtime,
+                ..
+            } => {
+                ui.label("Video path (relative to config). Tip: drop a video file on the window.");
                 self.dirty |= ui.text_edit_singleline(path).changed();
                 self.dirty |= ui.checkbox(repeat, "Loop video").changed();
+                self.dirty |= ui
+                    .checkbox(realtime, "Play at recorded speed")
+                    .on_hover_text(
+                        "Off: process every frame as fast as possible (offline analysis)",
+                    )
+                    .changed();
             }
             SourceConfig::Network { url, .. } => {
                 ui.label("Stream URL");
@@ -810,65 +958,205 @@ impl App {
                 let _ = tx.send(result);
             });
         }
+        let mut chosen = None;
         for c in &self.cameras {
-            ui.small(c);
+            if ui
+                .small_button(c)
+                .on_hover_text("Use this camera (then Restart acquisition)")
+                .clicked()
+            {
+                chosen = c.split(':').next().map(str::to_owned);
+            }
+        }
+        if let Some(number) = chosen
+            && let SourceConfig::Camera { device, .. } = &mut self.config.source
+        {
+            *device = number;
+            self.dirty = true;
         }
         ui.small("Restart to apply camera changes. Coordinates are image pixels; re-position regions if resolution changes.");
     }
+    /// Switch this run to another source without touching the saved config.
+    fn use_source(&mut self, source: Option<SourceConfig>, note: Option<String>) {
+        // Source edits made in Settings are already saved; remember them so a
+        // temporary source never writes an older one back.
+        if self.overrides.source.is_none() {
+            self.saved.source = self.config.source.clone();
+        }
+        self.overrides.source = source;
+        self.overrides.note = note;
+        self.config.source = self
+            .overrides
+            .source
+            .clone()
+            .unwrap_or_else(|| self.saved.source.clone());
+        self.request_restart();
+    }
+    fn dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
+        if let Some(path) = dropped {
+            let (width, height, fps) = self.config.source.dimensions();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            self.use_source(
+                Some(SourceConfig::Video {
+                    path: path.to_string_lossy().into_owned(),
+                    width,
+                    height,
+                    fps,
+                    repeat: true,
+                    realtime: true,
+                }),
+                Some(format!("Tracking {name} (dropped)")),
+            );
+        }
+    }
+    /// Start another window for the next free rig config.
+    fn new_window(&mut self) {
+        match std::env::current_exe().and_then(|exe| {
+            std::process::Command::new(exe)
+                .stdin(std::process::Stdio::null())
+                .spawn()
+        }) {
+            Ok(_) => self.status = "Opening another window for the next rig…".into(),
+            Err(e) => self.status = format!("New window: {e}"),
+        }
+    }
+    fn banner(&mut self, ui: &mut egui::Ui, state: &State) {
+        let (text, color) = if let Some(reason) = &state.fallback {
+            let what = if state.source == "Simulated fly" {
+                "a simulated fly".into()
+            } else if state.example.is_some() {
+                format!(
+                    "the {} with its own markers (edits are not saved)",
+                    state
+                        .source
+                        .strip_prefix("Sample video: ")
+                        .unwrap_or("sample video")
+                )
+            } else {
+                "a sample video".into()
+            };
+            (
+                format!("No camera — playing {what}. {reason}"),
+                Color32::from_rgb(240, 180, 80),
+            )
+        } else if let Some(note) = &self.overrides.note {
+            (
+                format!("{note} · not saved to the config"),
+                Color32::from_rgb(120, 200, 230),
+            )
+        } else {
+            return;
+        };
+        egui::Frame::new()
+            .fill(Color32::from_black_alpha(190))
+            .inner_margin(egui::Margin::symmetric(10, 6))
+            .show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(text).color(color).small()).wrap());
+                    if state.fallback.is_some() && ui.small_button("Retry camera").clicked() {
+                        self.request_restart();
+                    }
+                    if self.overrides.source.is_some()
+                        && ui.small_button("Back to saved source").clicked()
+                    {
+                        self.use_source(None, None);
+                    }
+                });
+            });
+    }
     fn plots(&self, ui: &mut egui::Ui) {
+        let small = |ui: &egui::Ui, rect: Rect, at: Pos2, text: &str, color: Color32| {
+            ui.painter().text(
+                at.clamp(rect.min, rect.max),
+                egui::Align2::LEFT_TOP,
+                text,
+                egui::FontId::proportional(10.5),
+                color,
+            );
+        };
+        let difference = Color32::from_gray(230);
         ui.columns(2, |columns| {
-            columns[0].label(
-                egui::RichText::new("Wing angle · last 8 seconds")
-                    .size(12.0)
-                    .strong(),
-            );
-            let (rect, _) = columns[0].allocate_exact_size(
-                Vec2::new(columns[0].available_width(), 110.0),
-                egui::Sense::hover(),
-            );
-            plot_grid(columns[0].painter(), rect);
+            let ui = &mut columns[0];
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("Wing angles · last 8 s")
+                        .size(12.0)
+                        .strong(),
+                );
+                for (label, color) in [("L", COLORS[0]), ("R", COLORS[1]), ("L−R", difference)] {
+                    ui.label(egui::RichText::new(label).size(11.0).color(color));
+                }
+            });
+            let (rect, _) = ui
+                .allocate_exact_size(Vec2::new(ui.available_width(), 110.0), egui::Sense::hover());
+            plot_grid(ui.painter(), rect);
+            for (text, frac) in [("+90°", 0.0), ("0°", 0.5), ("−90°", 1.0)] {
+                small(
+                    ui,
+                    rect,
+                    Pos2::new(rect.min.x + 4.0, rect.min.y + frac * (rect.height() - 14.0)),
+                    text,
+                    Color32::from_gray(120),
+                );
+            }
             if let Some(&(time, _, _)) = self.history.back() {
-                for (wing, &color) in COLORS.iter().take(2).enumerate() {
+                let y = |v: f32| {
+                    (rect.center().y - v.to_degrees() / 90.0 * rect.height() / 2.0)
+                        .clamp(rect.min.y, rect.max.y)
+                };
+                let x = |t: f32| rect.max.x - (time - t) / 8.0 * rect.width();
+                type Value = fn(Option<f32>, Option<f32>) -> Option<f32>;
+                let series: [(Color32, f32, Value); 3] = [
+                    (COLORS[0].gamma_multiply(0.6), 1.0, |l, _| l),
+                    (COLORS[1].gamma_multiply(0.6), 1.0, |_, r| r),
+                    (difference, 2.0, |l, r| l.zip(r).map(|(l, r)| l - r)),
+                ];
+                for (color, width, value) in series {
                     let mut segment = Vec::new();
                     for &(t, l, r) in &self.history {
                         if time - t > 8.0 {
                             continue;
                         }
-                        let value = if wing == 0 { l } else { r };
-                        if let Some(value) = value {
-                            segment.push(Pos2::new(
-                                rect.max.x - (time - t) / 8.0 * rect.width(),
-                                rect.center().y - value.to_degrees() / 90.0 * rect.height() / 2.0,
-                            ));
+                        if let Some(v) = value(l, r) {
+                            segment.push(Pos2::new(x(t), y(v)));
                         } else if segment.len() > 1 {
-                            columns[0].painter().add(egui::Shape::line(
+                            ui.painter().add(egui::Shape::line(
                                 std::mem::take(&mut segment),
-                                Stroke::new(1.5_f32, color),
+                                Stroke::new(width, color),
                             ));
                         } else {
                             segment.clear();
                         }
                     }
                     if segment.len() > 1 {
-                        columns[0]
-                            .painter()
-                            .add(egui::Shape::line(segment, Stroke::new(1.5_f32, color)));
+                        ui.painter()
+                            .add(egui::Shape::line(segment, Stroke::new(width, color)));
                     }
                 }
             }
-            columns[1].label(
-                egui::RichText::new(format!(
-                    "{} · radial intensity profile",
-                    NAMES[self.selected]
-                ))
-                .size(12.0)
-                .strong(),
-            );
-            let (rect, _) = columns[1].allocate_exact_size(
-                Vec2::new(columns[1].available_width(), 110.0),
-                egui::Sense::hover(),
-            );
-            plot_grid(columns[1].painter(), rect);
+            let ui = &mut columns[1];
+            let robust = self.config.sectors()[self.selected].method == Method::WingBlur;
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} · angular profile", NAMES[self.selected]))
+                        .size(12.0)
+                        .strong(),
+                );
+                if robust {
+                    ui.label(
+                        egui::RichText::new("thin: raw · bold: legs & antennae removed")
+                            .size(11.0)
+                            .color(Color32::GRAY),
+                    );
+                }
+            });
+            let (rect, _) = ui
+                .allocate_exact_size(Vec2::new(ui.available_width(), 110.0), egui::Sense::hover());
+            plot_grid(ui.painter(), rect);
             if let Some(snapshot) = &self.latest {
                 let state = [
                     &snapshot.measurement.left,
@@ -876,25 +1164,63 @@ impl App {
                     &snapshot.measurement.head,
                     &snapshot.measurement.abdomen,
                 ][self.selected];
-                if state.profile.len() > 1 {
-                    let points = state
-                        .profile
+                let color = COLORS[self.selected];
+                // Auto-scale each curve: faint wings change the profile by only a few percent.
+                let curve = |values: &[f32], width: f32, color: Color32| {
+                    if values.len() < 2 {
+                        return;
+                    }
+                    let lo = values.iter().copied().fold(f32::INFINITY, f32::min);
+                    let hi = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                    let range = (hi - lo).max(1e-4);
+                    let n = values.len() - 1;
+                    let points = values
                         .iter()
                         .enumerate()
                         .map(|(i, p)| {
                             Pos2::new(
-                                rect.min.x
-                                    + i as f32 / (state.profile.len() - 1) as f32 * rect.width(),
-                                rect.max.y - p * rect.height(),
+                                rect.min.x + i as f32 / n as f32 * rect.width(),
+                                rect.max.y - 4.0 - (p - lo) / range * (rect.height() - 8.0),
                             )
                         })
                         .collect();
-                    columns[1].painter().add(egui::Shape::line(
-                        points,
-                        Stroke::new(1.5_f32, COLORS[self.selected]),
-                    ));
+                    ui.painter()
+                        .add(egui::Shape::line(points, Stroke::new(width, color)));
+                };
+                if state.filtered.is_empty() {
+                    curve(&state.profile, 1.5, color);
+                } else {
+                    curve(&state.profile, 1.0, color.gamma_multiply(0.45));
+                    curve(&state.filtered, 2.2, color);
                 }
-                columns[1].small(format!(
+                // Mark detected edges; the primary edge is brighter and labelled.
+                let s = self.config.sectors()[self.selected];
+                for (&a, &relative) in state.image_angles.iter().zip(&state.angles_rad) {
+                    let offset = crate::tracker::wrap_angle(a - s.start_deg.to_radians())
+                        .rem_euclid(std::f32::consts::TAU);
+                    let f = offset / s.span_deg.to_radians();
+                    if (0.0..=1.0).contains(&f) {
+                        let x = rect.min.x + f * rect.width();
+                        let primary = state.image_angle_rad.is_some_and(|p| (p - a).abs() < 1e-5);
+                        ui.painter().line_segment(
+                            [Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)],
+                            Stroke::new(
+                                1.0_f32,
+                                Color32::from_white_alpha(if primary { 200 } else { 70 }),
+                            ),
+                        );
+                        if primary {
+                            small(
+                                ui,
+                                rect,
+                                Pos2::new(x + 4.0, rect.min.y + 3.0),
+                                &format!("{:+.1}°", relative.to_degrees()),
+                                Color32::from_gray(230),
+                            );
+                        }
+                    }
+                }
+                ui.small(format!(
                     "Peak {:.5} · ROI coverage {:.0}%",
                     state.peak_gradient,
                     state.coverage * 100.0
@@ -915,11 +1241,12 @@ fn plot_grid(p: &egui::Painter, rect: Rect) {
 }
 impl Drop for App {
     fn drop(&mut self) {
+        self.restore_rig();
         if self.config.autosave
             && self.config != self.last_autosave
             && let Some(saver) = &self.autosaver
         {
-            saver.submit(self.config.clone());
+            saver.submit(self.persistable());
         }
         // Finish accepted video frames and finalize AVI indexes before exit.
         if let Some(engine) = self.engine.take() {
@@ -937,7 +1264,7 @@ impl eframe::App for App {
             for result in saver.results.try_iter() {
                 match result {
                     Ok(saved) => {
-                        if saved == self.config {
+                        if saved == self.persistable() {
                             self.dirty = false;
                             if self.status == "Saving configuration…" {
                                 self.status = "Configuration saved".into();
@@ -975,13 +1302,22 @@ impl eframe::App for App {
                         "Live"
                     } else if running {
                         "Opening"
+                    } else if state.message == "End of video" {
+                        "End of video · press Start to replay"
                     } else {
                         "Stopped"
                     },
                 );
                 ui.small(&self.config.instance);
                 if state.recording.active {
-                    ui.colored_label(COLORS[0], format!("REC {}", state.recording.written));
+                    ui.colored_label(
+                        COLORS[0],
+                        format!(
+                            "REC {} · {:.0} MB",
+                            state.recording.written,
+                            state.recording.bytes as f64 / 1e6
+                        ),
+                    );
                 }
                 if let Some(error) = &state.recording.error {
                     ui.colored_label(COLORS[0], "REC error")
@@ -994,10 +1330,16 @@ impl eframe::App for App {
                         s.measurement.capture_fps, s.measurement.processing_us
                     ));
                 }
+                if let Some(error) = &state.output_error {
+                    ui.colored_label(COLORS[0], "Outputs off")
+                        .on_hover_text(error);
+                }
                 if let Some(error) = &state.error {
                     ui.colored_label(COLORS[0], "Camera error")
                         .on_hover_text(error);
-                } else if state.message != "Live" && state.message != "Acquisition stopped" {
+                } else if !["Live", "Acquisition stopped", "End of video"]
+                    .contains(&state.message.as_str())
+                {
                     ui.small(&state.message);
                 }
                 if !self.status.is_empty() {
@@ -1028,20 +1370,33 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
+                let full = ui.max_rect();
                 self.camera_view(ui);
+                let mut top = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(Rect::from_min_size(full.min, Vec2::new(full.width(), 40.0))),
+                );
+                self.banner(&mut top, &state);
             });
         self.settings(ctx, &state);
         if self.config != self.last_autosave {
             if self.config.autosave
+                && self.rig.is_none()
                 && let Some(saver) = &self.autosaver
             {
-                saver.submit(self.config.clone());
+                saver.submit(self.persistable());
             }
             self.last_autosave = self.config.clone();
         }
+        let title = window_title(&self.config);
+        if title != self.title {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.title = title;
+        }
+        self.dropped_files(ctx);
         if self.screenshot.is_some()
             && !self.screenshot_requested
-            && self.started.elapsed() > Duration::from_secs(2)
+            && self.started.elapsed() > self.screenshot_after
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
             self.screenshot_requested = true;
@@ -1120,6 +1475,71 @@ mod tests {
         assert!((c.tracking.right.span_deg - 115.0).abs() < 0.001);
         c.validate().unwrap();
     }
+    fn quiet_app(config: Config) -> App {
+        App {
+            autosaver: None,
+            last_autosave: config.clone(),
+            shutdown: Arc::new(AtomicBool::new(false)),
+            saved: config.clone(),
+            config,
+            overrides: Overrides::default(),
+            rig: None,
+            options: StartOptions::default(),
+            title: String::new(),
+            path: PathBuf::from("unused-gui.toml"),
+            engine: None,
+            selected: 0,
+            texture: None,
+            latest: None,
+            last_sequence: None,
+            last_display: None,
+            history: VecDeque::new(),
+            drag: None,
+            last_wing: 0,
+            show_difference: false,
+            show_settings: false,
+            show_diagnostics: false,
+            dirty: false,
+            status: String::new(),
+            restart_pending: false,
+            cameras: Vec::new(),
+            camera_query: None,
+            screenshot: None,
+            screenshot_after: Duration::from_secs(2),
+            screenshot_requested: false,
+            started: Instant::now(),
+        }
+    }
+    #[test]
+    fn a_dropped_video_never_overwrites_a_camera_chosen_in_settings() {
+        let mut config = Config::demo();
+        config.source = crate::config::camera_source(&config, "auto");
+        config.output.enabled = false;
+        let mut app = quiet_app(config);
+        // The user picks camera 1 in Settings; autosave stores it.
+        app.config.source = crate::config::camera_source(&app.config, "1");
+        assert_eq!(app.persistable().source, app.config.source);
+        let video = SourceConfig::Video {
+            path: "/nonexistent/dropped.avi".into(),
+            width: 640,
+            height: 480,
+            fps: 30,
+            repeat: true,
+            realtime: true,
+        };
+        app.use_source(Some(video.clone()), Some("dropped".into()));
+        assert_eq!(app.config.source, video);
+        let saved = app.persistable().source;
+        assert!(
+            matches!(&saved, SourceConfig::Camera { device, .. } if device == "1"),
+            "{saved:?}"
+        );
+        app.use_source(None, None);
+        assert!(matches!(&app.config.source, SourceConfig::Camera { device, .. } if device == "1"));
+        if let Some(engine) = app.engine.take() {
+            engine.wait();
+        }
+    }
     #[test]
     fn a_complete_fast_drag_in_one_frame_edits_the_unselected_wing() {
         for corner in [false, true] {
@@ -1129,9 +1549,13 @@ mod tests {
                 last_autosave: Config::default(),
                 shutdown: Arc::new(AtomicBool::new(false)),
                 config: Config::default(),
+                saved: Config::default(),
+                overrides: Overrides::default(),
+                rig: None,
+                options: StartOptions::default(),
+                title: String::new(),
                 path: PathBuf::from("unused.toml"),
                 engine: None,
-                limit: None,
                 selected: 0,
                 texture: Some(ctx.load_texture(
                     "test",
@@ -1153,6 +1577,7 @@ mod tests {
                 cameras: Vec::new(),
                 camera_query: None,
                 screenshot: None,
+                screenshot_after: Duration::from_secs(2),
                 screenshot_requested: false,
                 started: Instant::now(),
             };
@@ -1169,6 +1594,7 @@ mod tests {
             let _ = ctx.run(raw(vec![]), |ctx| draw(ctx, &mut app));
             // Settings still selects Left; directly drag Right's arc or corner.
             let sector = &app.config.tracking.right;
+            let (start_deg, span_deg) = (sector.start_deg, sector.span_deg);
             let angle =
                 (sector.start_deg + if corner { 0.0 } else { sector.span_deg * 0.5 }).to_radians();
             let start = sector.hinge.at(sector.outer_radius, angle);
@@ -1196,9 +1622,10 @@ mod tests {
             assert!((app.config.tracking.right.outer_radius - 160.0).abs() < 0.01);
             assert!((app.config.tracking.left.outer_radius - 160.0).abs() < 0.01);
             if corner {
-                assert!((app.config.tracking.right.start_deg + 35.0).abs() < 0.01);
-                assert!((app.config.tracking.right.span_deg - 100.0).abs() < 0.01);
-                assert!((app.config.tracking.left.span_deg - 100.0).abs() < 0.01);
+                let right = &app.config.tracking.right;
+                assert!((right.start_deg - (start_deg - 10.0)).abs() < 0.01);
+                assert!((right.span_deg - (span_deg + 10.0)).abs() < 0.01);
+                assert!((app.config.tracking.left.span_deg - (span_deg + 10.0)).abs() < 0.01);
             }
             assert!(app.dirty);
             assert!(app.drag.is_none());

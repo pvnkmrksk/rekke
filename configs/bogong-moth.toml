@@ -1,0 +1,158 @@
+# The Bogong moth example: a real tethered Bogong moth (Agrotis infusa) filmed
+# from above at 30 fps, head down. Its antennae and legs reach out beside the
+# wing sectors near the head, and each frame catches a different part of the
+# wingbeat. Viewed from above with the head down, the moth's left wing is on
+# the image's right.
+# Also the template for tracking any video file: change source.path, then drag
+# the dots onto your insect. AVI plays natively; other formats need FFmpeg.
+# The GUI saves marker and detector edits back into this file automatically;
+# these comments are kept. Run it with:  rekkefly --config <this file>
+# Every setting is explained in the README ("Configuration reference").
+
+# Name shown in the window title, logs and recording folder names.
+instance = "bogong-moth"
+# How often the GUI preview refreshes. Tracking always uses every frame.
+preview_fps = 40
+# Save GUI edits 300 ms after you stop dragging (and on close).
+autosave = true
+
+[source]
+kind = "video"
+# Relative to this config. The bundled example is used if this file is missing.
+path = "../samples/bogong-moth.avi"
+# Loop at the end, and play at the recorded speed (false = as fast as possible).
+repeat = true
+realtime = true
+# Processing size; videos of other sizes are scaled to fit without distortion.
+width = 640
+height = 480
+fps = 30
+
+# Body axis: drag the magenta head dot and cyan tail dot onto the insect.
+[head]
+x = 354.0
+y = 268.0
+
+[tail]
+x = 352.0
+y = 88.0
+
+[tracking]
+# false: the wings mirror each other across the head–tail axis while you edit.
+asymmetric = false
+# Angular and radial sampling of each sector (more = finer, slower).
+angle_bins = 240
+radial_samples = 72
+# true: dark insect on a light (backlit) background; false: bright insect on dark.
+dark_on_light = false
+# Track the difference from a saved empty-scene image ("Save BG" in the toolbar).
+subtract_background = false
+background_path = "bogong-moth.background.png"
+
+# Wing sectors. Angles are image degrees, clockwise from image-right.
+# Here each hinge sits where that wing's leading edges meet in every frame (the
+# wing base), the inner radius is just past the body, the outer radius ends
+# inside the wing blur, and the sector runs from just clear of the thorax
+# (toward the tail) to past the most forward stroke, short of the legs.
+# primary_edge = "toward_head" reports the leading edge: where the wing gives
+# way to background on the head side.
+# method: "wing_blur" = robust, ignores legs and antennae (default)
+#         "edge"      = classic strongest edge of the averaged profile
+#         "centroid"  = intensity centroid (used for head/abdomen)
+# threshold: 0 reports the strongest edge however faint; raise it to reject noise.
+# spike_width_deg: robust mode ignores dark features narrower than this (legs, antennae).
+# contrast_cap: robust mode limits contrast so opaque legs cannot outweigh a translucent wing.
+
+[tracking.left]
+enabled = true
+start_deg = -70.0
+span_deg = 125.0
+inner_radius = 20.0
+outer_radius = 150.0
+method = "wing_blur"
+threshold = 0.0
+max_edges = 2
+primary_edge = "toward_head"
+contrast_cap = 0.12
+spike_width_deg = 5.0
+
+[tracking.left.hinge]
+x = 371.5
+y = 239.0
+
+[tracking.right]
+enabled = true
+start_deg = 125.0
+span_deg = 125.0
+inner_radius = 20.0
+outer_radius = 150.0
+method = "wing_blur"
+threshold = 0.0
+max_edges = 2
+primary_edge = "toward_head"
+contrast_cap = 0.12
+spike_width_deg = 5.0
+
+[tracking.right.hinge]
+x = 334.5
+y = 239.0
+
+[tracking.head]
+enabled = false
+start_deg = 55.0
+span_deg = 70.0
+inner_radius = 10.0
+outer_radius = 45.0
+method = "centroid"
+threshold = 0.0
+max_edges = 2
+primary_edge = "toward_head"
+contrast_cap = 0.12
+spike_width_deg = 5.0
+
+[tracking.head.hinge]
+x = 353.0
+y = 240.0
+
+[tracking.abdomen]
+enabled = false
+start_deg = -125.0
+span_deg = 70.0
+inner_radius = 15.0
+outer_radius = 90.0
+method = "centroid"
+threshold = 0.0
+max_edges = 2
+primary_edge = "toward_head"
+contrast_cap = 0.12
+spike_width_deg = 5.0
+
+[tracking.abdomen.hinge]
+x = 352.0
+y = 180.0
+
+[output]
+# Full measurements as JSON over UDP, one datagram per frame.
+enabled = true
+# This rig's own sending port: every rig needs a different one.
+bind = "127.0.0.1:5508"
+# Where your receiver listens (python3 examples/receive_udp.py --port 5608).
+target = "127.0.0.1:5608"
+# Also write every measurement to this JSONL file (relative to this config). Empty = off.
+jsonl_path = ""
+# Kinefly-compatible ZMQ publisher. Subscribers connect to tcp://<this computer>:9878.
+zmq_enabled = false
+zmq_bind = "tcp://*:9878"
+
+[recording]
+# Start recording as soon as this rig starts (the Record button works any time).
+enabled = false
+# Folder for recordings, relative to this config.
+directory = "recordings"
+# "mjpeg" = small (about 10–20× smaller than raw), "png" = lossless, "raw" = lossless and largest.
+format = "mjpeg"
+# MJPEG quality 1–100; 90 is visually lossless for wing tracking.
+quality = 90
+# Frames buffered for the disk writer, and the size of each AVI file.
+queue_frames = 32
+segment_mb = 1024

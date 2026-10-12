@@ -1,50 +1,59 @@
-REKKE — INSTALLATION
+REKKEFLY 0.6 — INSTALLATION AND FIRST STEPS
 
 MAC
-1. Open the DMG. Drag Rekke.app onto the Applications shortcut.
-2. Eject the image and open Rekke from Applications. Allow camera access.
-3. Only the app needs copying. Its resources are contained inside the bundle.
-   Configs, marker state and saved backgrounds are writable under:
-   ~/Library/Application Support/Rekke/configs/
+1. Open the DMG and drag Rekkefly onto the Applications shortcut.
+2. Eject the image and open Rekkefly from Applications. Allow camera access.
+3. If macOS says Rekkefly "cannot be opened" (the app is free and not
+   notarized by Apple), and you trust this download, run once in Terminal:
 
-ONE-TIME TERMINAL SHORTCUT FOR A TRUSTED DOWNLOAD
+       xattr -dr com.apple.quarantine "/Applications/Rekkefly.app"
 
-    xattr -dr com.apple.quarantine "/Applications/Rekke.app"
+   This clears the download flag on Rekkefly only; Gatekeeper stays on.
+   Alternatively: try to open Rekkefly once, then System Settings >
+   Privacy & Security > Open Anyway.
+   Configs: ~/Library/Application Support/Rekkefly/configs/
 
-Then open the app normally. Adapt the path if installed elsewhere. This clears
-quarantine only on Rekke.app; it does not disable Gatekeeper globally or sign/
-notarize the app. No sudo is normally needed for an app you own. Repeat for a
-new downloaded release if needed. Camera permission is separate.
+WINDOWS 10/11 (64-bit)
+Run Rekkefly-0.6.0-windows-x64-setup.exe. It installs for your user account
+(no administrator rights) and adds Start-menu and desktop shortcuts, including
+"Rekkefly - start all rigs". SmartScreen may ask you to confirm the unsigned app.
+Configs: %APPDATA%\Rekkefly\configs (kept when you uninstall).
 
-Rekke is free software with an ad-hoc signature but no paid Apple Developer ID
-signature or notarization. Approve only a release whose origin you trust.
-Alternatively, try opening once, then System Settings > Privacy & Security >
-Open Anyway. On macOS 14 or earlier, right-click > Open can also work; Apple
-removed that override in macOS 15. A malware/damage alert is a different issue.
-https://support.apple.com/en-au/102445
-https://developer.apple.com/forums/thread/739357
+UBUNTU 22.04 OR NEWER (x86-64)
+    sudo apt install ./rekkefly_0.6.0_amd64.deb
+Open Rekkefly from the app menu (right-click for "Start all rigs") or run: rekkefly
+Configs: ~/.config/rekkefly/configs
 
-WINDOWS 10/11 X64
-Run Rekke-0.5.1-windows-x64-setup.exe. The installer uses your user account,
-adds desktop/Start-menu shortcuts and needs no administrator elevation.
-Config state is under %APPDATA%\Rekke\configs and survives uninstall.
-This unsigned build can show SmartScreen. Verify the download's origin.
+FIRST STEPS
+- Rekkefly opens the first camera it can. With no camera, the Bogong moth
+  example (a real tethered moth, 30 s) plays with its own markers; connect a
+  camera and click "Retry camera".
+- Drag the dots onto the insect: magenta = head, cyan = tail, red/green =
+  wing hinges (where each wing turns, at its base), corner dots = sector angle
+  and radius. Inner radius just past the body, outer radius inside the wing
+  blur. Edits save automatically.
+- Angles appear at the lower left and are published on ZMQ port 9871
+  (Kinefly format) and over UDP. "Ignore legs" is on by default.
+- Drop a video file on the window to track it. Record with the Record button.
 
-UBUNTU 22.04+ X86-64
-    sudo apt install ./rekke_0.5.1_amd64.deb
-Open Rekke from the Science/app menu or run: rekke
-Configs live under ~/.config/rekke/configs (or XDG_CONFIG_HOME/rekke/configs).
+SEVERAL CAMERAS
+- Click "New window" (or start Rekkefly again): the next window takes the next
+  rig config (camera-b.toml: camera 1, ZMQ 9872, UDP 5502).
+- Or list every rig in rigs.toml (label, device, ports) and run:
+      rekkefly --rigs
+      rekkefly --rigs --headless --record
+  On Mac use /Applications/Rekkefly.app/Contents/MacOS/rekkefly instead of rekkefly.
+- Find camera numbers with:  rekkefly --list-cameras
 
-MULTIPLE RIGS
-Edit each seeded camera config and rigs.toml for your devices and unique ports.
-Close any instance already using those ports, then run:
-    rekke --rigs
-    rekke --rigs --headless --record
-On Mac replace rekke with /Applications/Rekke.app/Contents/MacOS/rekke.
-Explicit --config and --rigs paths also work. Ctrl+C stops the rig set cleanly.
+PORTABLE FOLDERS
+Extract the whole folder and run ./rekkefly (rekkefly.exe on Windows) or one of the
+launchers (Demo, Bogong Moth Example, Camera A/B, All Rigs). Configs are read
+from the folder's configs/ directory.
 
-PORTABLE PACKAGES
-Extract the whole folder. Run ./rekke (rekke.exe on Windows), or a launcher.
-Portable CLI configs resolve beside the executable; the Mac .app uses user state.
-See README for tracking, recording, ZMQ, live plot and source builds.
-https://github.com/pvnkmrksk/rekke
+AI AGENTS AND SCRIPTS
+- rekkefly mcp is a Model Context Protocol server: add it to Claude Code with
+      claude mcp add rekkefly -- rekkefly mcp
+  (on Mac: /Applications/Rekkefly.app/Contents/MacOS/rekkefly mcp).
+- rekkefly track VIDEO --csv angles.csv tracks a whole video offline.
+
+Full guide: README.md, or https://github.com/pvnkmrksk/rekke

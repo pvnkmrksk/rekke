@@ -4,7 +4,6 @@ use crate::{
 };
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::f32::consts::{PI, TAU};
 
 pub const NAMES: [&str; 4] = ["Left wing", "Right wing", "Head", "Abdomen"];
@@ -18,7 +17,8 @@ pub struct PartState {
     /// Signed relative angle; wings positive toward the head.
     pub angle_rad: Option<f32>,
     pub image_angle_rad: Option<f32>,
-    /// Strongest first. No edges means the measurement is invalid.
+    /// The primary edge first, then the others by strength. No edges means
+    /// the measurement is invalid.
     pub angles_rad: Vec<f32>,
     pub gradients: Vec<f32>,
     pub radius_px: Option<f32>,
@@ -30,6 +30,10 @@ pub struct PartState {
     pub coverage: f32,
     #[serde(skip)]
     pub profile: Vec<f32>,
+    /// What the robust detector ranks edges on: the median level across
+    /// radial bands after thin features (legs, antennae) are removed.
+    #[serde(skip)]
+    pub filtered: Vec<f32>,
     #[serde(skip)]
     pub image_angles: Vec<f32>,
 }
@@ -54,34 +58,38 @@ pub struct Measurement {
     pub left_plus_right_rad: Option<f32>,
 }
 
-#[derive(Clone)]
-struct Sample {
-    index: usize,
-    wx: f32,
-    wy: f32,
-    radius: f32,
+/// How pixel values are read: raw, inverted (dark insect on a light
+/// background) or as the absolute difference from a saved background. The
+/// transform is applied while sampling, so no full-frame copy is ever made.
+#[derive(Clone, Copy)]
+enum Pixels<'a> {
+    Raw(&'a [u8]),
+    Inverted(&'a [u8]),
+    Difference(&'a [u8], &'a [u8]),
 }
-impl Sample {
-    fn value(&self, frame: &GrayFrame) -> f32 {
-        let p = &frame.pixels;
-        let i = self.index;
-        let w = frame.width as usize;
-        // Difference form preserves uniform pixels exactly, even at threshold zero.
-        let top = p[i] as f32 + (p[i + 1] as f32 - p[i] as f32) * self.wx;
-        let bot = p[i + w] as f32 + (p[i + w + 1] as f32 - p[i + w] as f32) * self.wx;
-        top + (bot - top) * self.wy
-    }
+#[inline(always)]
+fn bilinear(a: f32, b: f32, c: f32, d: f32, wx: f32, wy: f32) -> f32 {
+    // Difference form preserves uniform pixels exactly, even at threshold zero.
+    let top = a + (b - a) * wx;
+    let bot = c + (d - c) * wx;
+    top + (bot - top) * wy
 }
+/// Three-bin box smoothing, then a central difference over ±2 bins, with
+/// the window clipped at the profile ends.
 fn smooth_gradient(profile: &[f32]) -> Vec<f32> {
-    let smooth: Vec<f32> = (0..profile.len())
-        .map(|i| {
-            let lo = i.saturating_sub(1);
-            let hi = (i + 1).min(profile.len() - 1);
-            profile[lo..=hi].iter().sum::<f32>() / (hi - lo + 1) as f32
-        })
-        .collect();
-    (0..profile.len())
-        .map(|i| smooth[(i + 2).min(profile.len() - 1)] - smooth[i.saturating_sub(2)])
+    let n = profile.len();
+    let mut smooth = vec![0.0; n];
+    for (i, value) in smooth.iter_mut().enumerate() {
+        let lo = i.saturating_sub(1);
+        let hi = (i + 1).min(n - 1);
+        let mut sum = 0.0;
+        for v in &profile[lo..=hi] {
+            sum += v;
+        }
+        *value = sum / (hi - lo + 1) as f32;
+    }
+    (0..n)
+        .map(|i| smooth[(i + 2).min(n - 1)] - smooth[i.saturating_sub(2)])
         .collect()
 }
 fn median(values: &mut [f32]) -> f32 {
@@ -94,28 +102,31 @@ fn median(values: &mut [f32]) -> f32 {
     }
 }
 // Flat grayscale opening removes short bright pulses without attenuating a
-// broad, low shoulder. Monotonic queues keep both passes linear in angle bins.
+// broad, low shoulder. Edge samples are replicated beyond the profile ends.
+// Van Herk/Gil-Werman: three comparisons per bin for any window width.
 fn envelope(profile: &[f32], radius: usize, minimum: bool) -> Vec<f32> {
-    let mut queue: VecDeque<(usize, f32)> = VecDeque::new();
-    let mut out = Vec::with_capacity(profile.len());
-    let window = radius * 2 + 1;
-    for i in 0..profile.len() + radius * 2 {
-        let value = profile[i.saturating_sub(radius).min(profile.len() - 1)];
-        while queue
-            .back()
-            .is_some_and(|&(_, v)| if minimum { v >= value } else { v <= value })
-        {
-            queue.pop_back();
-        }
-        queue.push_back((i, value));
-        while queue.front().is_some_and(|&(j, _)| j + window <= i) {
-            queue.pop_front();
-        }
-        if i + 1 >= window {
-            out.push(queue.front().unwrap().1);
+    let n = profile.len();
+    let w = 2 * radius + 1;
+    let pick = |a: f32, b: f32| if minimum { a.min(b) } else { a.max(b) };
+    let padded: Vec<f32> = (0..n + 2 * radius)
+        .map(|i| profile[i.saturating_sub(radius).min(n - 1)])
+        .collect();
+    let m = padded.len();
+    let mut forward = padded.clone();
+    let mut backward = padded.clone();
+    for i in 1..m {
+        if i % w != 0 {
+            forward[i] = pick(forward[i - 1], padded[i]);
         }
     }
-    out
+    for i in (0..m - 1).rev() {
+        if (i + 1) % w != 0 {
+            backward[i] = pick(backward[i + 1], padded[i]);
+        }
+    }
+    (0..n)
+        .map(|j| pick(backward[j], forward[j + w - 1]))
+        .collect()
 }
 fn remove_spikes(profile: &[f32], radius: usize) -> Vec<f32> {
     if radius == 0 {
@@ -123,97 +134,235 @@ fn remove_spikes(profile: &[f32], radius: usize) -> Vec<f32> {
     }
     envelope(&envelope(profile, radius, true), radius, false)
 }
+#[derive(Clone, Copy)]
+struct Sample {
+    /// Top-left pixel index; `OUTSIDE` lies beyond the image.
+    index: u32,
+    wx: f32,
+    wy: f32,
+}
+const OUTSIDE: u32 = u32::MAX;
+/// Precomputed bilinear sampling positions for one annular sector, stored
+/// bin-major: all radii of bin 0, then bin 1, and so on.
 struct PolarGrid {
-    samples: Vec<Option<Sample>>,
+    samples: Vec<Sample>,
+    /// Radius of each radial sample, pixels.
+    radius: Vec<f32>,
     bins: usize,
     radial: usize,
+    width: usize,
     coverage: Vec<f32>,
+}
+/// Per-bin sums, counts and radius-weighted sums, then per-band sums and counts.
+type Sums = (Vec<f32>, Vec<u32>, Vec<f32>, Vec<f32>, Vec<u32>);
+/// One sector's angular profiles from a single sampling pass.
+struct Profiles {
+    profile: Vec<f32>,
+    /// Intensity-weighted mean radius per bin (centroid detector only).
+    radii: Vec<f32>,
+    /// Up to eight radial bands, each an angular profile (WingBlur only).
+    bands: Vec<Vec<f32>>,
 }
 impl PolarGrid {
     fn new(s: &Sector, width: u32, height: u32, bins: usize, radial: usize) -> Self {
+        let radius: Vec<f32> = (0..radial)
+            .map(|r| {
+                s.inner_radius
+                    + (s.outer_radius - s.inner_radius) * (r as f32 + 0.5) / radial as f32
+            })
+            .collect();
         let mut samples = Vec::with_capacity(bins * radial);
         let mut coverage = Vec::with_capacity(bins);
         for b in 0..bins {
             let a = (s.start_deg + s.span_deg * b as f32 / (bins - 1) as f32).to_radians();
             let mut count = 0;
-            for r in 0..radial {
-                let radius = s.inner_radius
-                    + (s.outer_radius - s.inner_radius) * (r as f32 + 0.5) / radial as f32;
-                let p = s.hinge.at(radius, a);
+            for &r in &radius {
+                let p = s.hinge.at(r, a);
                 if p.x >= 0.0 && p.y >= 0.0 && p.x < (width - 1) as f32 && p.y < (height - 1) as f32
                 {
                     let x = p.x.floor() as usize;
                     let y = p.y.floor() as usize;
-                    samples.push(Some(Sample {
-                        index: y * width as usize + x,
+                    samples.push(Sample {
+                        index: (y * width as usize + x) as u32,
                         wx: p.x - x as f32,
                         wy: p.y - y as f32,
-                        radius,
-                    }));
+                    });
                     count += 1;
                 } else {
-                    samples.push(None);
+                    samples.push(Sample {
+                        index: OUTSIDE,
+                        wx: 0.0,
+                        wy: 0.0,
+                    });
                 }
             }
             coverage.push(count as f32 / radial as f32);
         }
         Self {
             samples,
+            radius,
             bins,
             radial,
+            width: width as usize,
             coverage,
         }
     }
-    fn profile(&self, frame: &GrayFrame) -> (Vec<f32>, Vec<f32>) {
-        let mut profile = vec![0.0; self.bins];
-        let mut radii = vec![0.0; self.bins];
-        for b in 0..self.bins {
-            let mut count = 0;
-            for sample in self.samples[b * self.radial..(b + 1) * self.radial]
-                .iter()
-                .flatten()
-            {
-                let value = sample.value(frame);
-                profile[b] += value;
-                radii[b] += value * sample.radius;
-                count += 1;
+    /// Sum sampled values per bin, per radial band and weighted by radius.
+    #[inline(always)]
+    fn accumulate<F: Fn(usize, f32, f32) -> f32>(
+        &self,
+        value: F,
+        radii: bool,
+        bands: usize,
+    ) -> Sums {
+        let bins = self.bins;
+        let mut sums = vec![0.0f32; bins];
+        let mut counts = vec![0u32; bins];
+        let mut weighted = if radii {
+            vec![0.0f32; bins]
+        } else {
+            Vec::new()
+        };
+        let mut band_sums = vec![0.0f32; bins * bands];
+        let mut band_counts = vec![0u32; bins * bands];
+        let edges: Vec<usize> = (0..=bands)
+            .map(|k| k * self.radial / bands.max(1))
+            .collect();
+        for (b, bin) in self.samples.chunks_exact(self.radial).enumerate() {
+            if bands == 0 && !radii {
+                let (mut sum, mut count) = (0.0f32, 0u32);
+                for s in bin {
+                    if s.index != OUTSIDE {
+                        sum += value(s.index as usize, s.wx, s.wy);
+                        count += 1;
+                    }
+                }
+                sums[b] = sum;
+                counts[b] = count;
+                continue;
             }
-            if profile[b] > 0.0 {
-                radii[b] /= profile[b];
-            }
-            if count > 0 {
-                profile[b] /= count as f32 * 255.0;
+            for band in 0..bands.max(1) {
+                let (lo, hi) = if bands == 0 {
+                    (0, self.radial)
+                } else {
+                    (edges[band], edges[band + 1])
+                };
+                let (mut sum, mut count, mut w) = (0.0f32, 0u32, 0.0f32);
+                for (s, &r) in bin[lo..hi].iter().zip(&self.radius[lo..hi]) {
+                    if s.index != OUTSIDE {
+                        let v = value(s.index as usize, s.wx, s.wy);
+                        sum += v;
+                        w += v * r;
+                        count += 1;
+                    }
+                }
+                sums[b] += sum;
+                counts[b] += count;
+                if radii {
+                    weighted[b] += w;
+                }
+                if bands > 0 {
+                    band_sums[b * bands + band] = sum;
+                    band_counts[b * bands + band] = count;
+                }
             }
         }
-        (profile, radii)
+        (sums, counts, weighted, band_sums, band_counts)
     }
+    fn profiles(&self, pixels: Pixels, radii: bool, bands: usize) -> Profiles {
+        let w = self.width;
+        let (sums, counts, mut weighted, mut band_sums, band_counts) = match pixels {
+            Pixels::Raw(p) | Pixels::Inverted(p) => self.accumulate(
+                |i, wx, wy| {
+                    let q = &p[i..i + w + 2];
+                    bilinear(
+                        q[0] as f32,
+                        q[1] as f32,
+                        q[w] as f32,
+                        q[w + 1] as f32,
+                        wx,
+                        wy,
+                    )
+                },
+                radii,
+                bands,
+            ),
+            Pixels::Difference(p, b) => self.accumulate(
+                |i, wx, wy| {
+                    let (q, r) = (&p[i..i + w + 2], &b[i..i + w + 2]);
+                    let d = |k: usize| q[k].abs_diff(r[k]) as f32;
+                    bilinear(d(0), d(1), d(w), d(w + 1), wx, wy)
+                },
+                radii,
+                bands,
+            ),
+        };
+        let mut sums = sums;
+        if let Pixels::Inverted(_) = pixels {
+            // mean(255 − v) = 255 − mean(v): invert the sums, not every pixel.
+            for (b, sum) in sums.iter_mut().enumerate() {
+                let n = counts[b] as f32;
+                if radii {
+                    let lo = b * self.radial;
+                    let radius_sum: f32 = self.samples[lo..lo + self.radial]
+                        .iter()
+                        .zip(&self.radius)
+                        .filter(|(s, _)| s.index != OUTSIDE)
+                        .map(|(_, r)| r)
+                        .sum();
+                    weighted[b] = 255.0 * radius_sum - weighted[b];
+                }
+                *sum = 255.0 * n - *sum;
+            }
+            for (sum, &n) in band_sums.iter_mut().zip(&band_counts) {
+                *sum = 255.0 * n as f32 - *sum;
+            }
+        }
+        let profile: Vec<f32> = sums
+            .iter()
+            .zip(&counts)
+            .map(|(s, &n)| if n > 0 { s / (n as f32 * 255.0) } else { 0.0 })
+            .collect();
+        let radii = if radii {
+            weighted
+                .iter()
+                .zip(&sums)
+                .map(|(w, s)| if *s > 0.0 { w / s } else { 0.0 })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let bands = (0..bands)
+            .map(|band| {
+                (0..self.bins)
+                    .map(|b| {
+                        let k = b * bands + band;
+                        if band_counts[k] > 0 {
+                            band_sums[k] / (band_counts[k] as f32 * 255.0)
+                        } else {
+                            0.0
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+        Profiles {
+            profile,
+            radii,
+            bands,
+        }
+    }
+    /// Median signed derivative across radial bands, after limiting contrast
+    /// and removing angular pulses narrower than `spike_radius` bins. Also
+    /// returns the median filtered level above each band's background, which
+    /// shows where the broad wing shoulder is.
     fn consensus_gradient(
         &self,
-        frame: &GrayFrame,
+        mut bands: Vec<Vec<f32>>,
         contrast_cap: f32,
         spike_radius: usize,
-    ) -> Vec<f32> {
-        let bands = self.radial.min(8);
-        let mut profiles = vec![vec![0.0; self.bins]; bands];
-        for b in 0..self.bins {
-            for (band, profile) in profiles.iter_mut().enumerate() {
-                let lo = band * self.radial / bands;
-                let hi = (band + 1) * self.radial / bands;
-                let mut count = 0;
-                let mut sum = 0.0;
-                for sample in self.samples[b * self.radial + lo..b * self.radial + hi]
-                    .iter()
-                    .flatten()
-                {
-                    sum += sample.value(frame);
-                    count += 1;
-                }
-                if count > 0 {
-                    profile[b] = sum / (count as f32 * 255.0);
-                }
-            }
-        }
-        let gradients: Vec<Vec<f32>> = profiles
+    ) -> (Vec<f32>, Vec<f32>) {
+        let (gradients, levels): (Vec<Vec<f32>>, Vec<Vec<f32>>) = bands
             .iter_mut()
             .map(|p| {
                 // Empty bins beyond the image must not become the background
@@ -227,18 +376,22 @@ impl PolarGrid {
                 for value in p.iter_mut() {
                     *value = value.min(baseline + contrast_cap);
                 }
-                smooth_gradient(&remove_spikes(p, spike_radius))
+                let opened = remove_spikes(p, spike_radius);
+                let level = opened.iter().map(|v| (v - baseline).max(0.0)).collect();
+                (smooth_gradient(&opened), level)
             })
-            .collect();
+            .unzip();
+        let count = gradients.len();
+        let across = |rows: &[Vec<f32>], i: usize| {
+            let mut values = [0.0; 8];
+            for (v, row) in values.iter_mut().zip(rows) {
+                *v = row[i];
+            }
+            median(&mut values[..count])
+        };
         (0..self.bins)
-            .map(|i| {
-                let mut values = [0.0; 8];
-                for (v, gradient) in values.iter_mut().zip(&gradients) {
-                    *v = gradient[i];
-                }
-                median(&mut values[..bands])
-            })
-            .collect()
+            .map(|i| (across(&gradients, i), across(&levels, i)))
+            .unzip()
     }
 }
 pub struct Tracker {
@@ -301,23 +454,21 @@ impl Tracker {
         );
         let clock = std::time::Instant::now();
         let subtract = self.config.tracking.subtract_background;
-        let processed = if subtract {
-            Some(raw.difference(background.ok_or_else(|| {
+        let pixels = if subtract {
+            let bg = background.ok_or_else(|| {
                 anyhow::anyhow!("Background subtraction requested but no reference is loaded")
-            })?)?)
+            })?;
+            ensure!(
+                bg.width == raw.width && bg.height == raw.height,
+                "Background dimensions differ from camera frame"
+            );
+            Pixels::Difference(&raw.pixels, &bg.pixels)
         } else if self.config.tracking.dark_on_light {
-            Some(GrayFrame {
-                width: raw.width,
-                height: raw.height,
-                timestamp_ns: raw.timestamp_ns,
-                sequence: raw.sequence,
-                pixels: raw.pixels.iter().map(|x| 255 - x).collect(),
-            })
+            Pixels::Inverted(&raw.pixels)
         } else {
-            None
+            Pixels::Raw(&raw.pixels)
         };
-        let foreground = processed.as_ref().unwrap_or(raw);
-        let states: [PartState; 4] = std::array::from_fn(|i| self.track(i, foreground));
+        let states: [PartState; 4] = std::array::from_fn(|i| self.track(i, pixels));
         let [left, right, head, abdomen] = states;
         let difference = left.angle_rad.zip(right.angle_rad).map(|(l, r)| l - r);
         let sum = left.angle_rad.zip(right.angle_rad).map(|(l, r)| l + r);
@@ -340,13 +491,22 @@ impl Tracker {
             left_plus_right_rad: sum,
         })
     }
-    fn track(&self, index: usize, foreground: &GrayFrame) -> PartState {
+    fn track(&self, index: usize, pixels: Pixels) -> PartState {
         let s = self.config.sectors()[index];
         if !s.enabled {
             return PartState::default();
         }
         let grid = &self.grids[index];
-        let (profile, radii) = grid.profile(foreground);
+        let bands = if s.method == Method::WingBlur {
+            grid.radial.min(8)
+        } else {
+            0
+        };
+        let Profiles {
+            profile,
+            radii,
+            bands,
+        } = grid.profiles(pixels, s.method == Method::Centroid, bands);
         let coverage = grid.coverage.iter().sum::<f32>() / grid.bins as f32;
         let intensity = profile.iter().sum::<f32>() / grid.bins as f32;
         let mut state = PartState {
@@ -366,17 +526,26 @@ impl Tracker {
                 } else {
                     0
                 };
-                let gradient = if s.method == Method::WingBlur {
-                    grid.consensus_gradient(foreground, s.contrast_cap, spike_radius)
+                let (gradient, level) = if s.method == Method::WingBlur {
+                    grid.consensus_gradient(bands, s.contrast_cap, spike_radius)
                 } else {
-                    smooth_gradient(&profile)
+                    (smooth_gradient(&profile), Vec::new())
                 };
-                let valid = |i: usize| {
-                    grid.coverage[i.saturating_sub(2 + spike_radius * 2)
-                        ..=(i + 2 + spike_radius * 2).min(grid.bins - 1)]
-                        .iter()
-                        .all(|x| *x >= 0.9)
-                };
+                // A bin is measurable only if its whole filter footprint is
+                // inside the image (≥90% radial coverage).
+                let reach = 2 + spike_radius * 2;
+                let mut bad = vec![0usize; grid.bins + 1];
+                for (i, c) in grid.coverage.iter().enumerate() {
+                    bad[i + 1] = bad[i] + usize::from(*c < 0.9);
+                }
+                let valid_bins: Vec<bool> = (0..grid.bins)
+                    .map(|i| {
+                        let lo = i.saturating_sub(reach);
+                        let hi = (i + reach).min(grid.bins - 1);
+                        bad[hi + 1] == bad[lo]
+                    })
+                    .collect();
+                let valid = |i: usize| valid_bins[i];
                 state.peak_gradient = (0..grid.bins)
                     .filter(|&i| valid(i))
                     .map(|i| gradient[i].abs())
@@ -402,8 +571,91 @@ impl Tracker {
                 {
                     candidates.push(i);
                 }
-                candidates
-                    .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));
+                if s.method == Method::WingBlur {
+                    // A wing edge borders a broad shoulder of blur; a leg or
+                    // line is narrow, even if as dark or as sharp. Rank edges
+                    // by the shoulder behind them, not by their steepness;
+                    // the gradient peak still gives the precise angle.
+                    let bin_deg = s.span_deg / (grid.bins - 1) as f32;
+                    let window = ((s.spike_width_deg * 4.0)
+                        .clamp(12.0, 45.0)
+                        .min(s.span_deg / 3.0)
+                        / bin_deg)
+                        .round()
+                        .max(2.0) as usize;
+                    let mean = |lo: usize, hi: usize| {
+                        let (sum, n) = (lo..hi.min(grid.bins))
+                            .filter(|&b| grid.coverage[b] >= 0.9)
+                            .fold((0.0, 0), |(s, n), b| (s + level[b], n + 1));
+                        (if n > 0 { sum / n as f32 } else { 0.0 }, n)
+                    };
+                    // Long windows on both sides: a narrow line, even a dark
+                    // or sharp one, has little blur behind it. A window cut
+                    // to under half by the sector end is weaker evidence, so
+                    // an edge there cannot win on a few bins of contrast.
+                    let shoulder = |i: usize| {
+                        let (after, a) = mean(i + 1, i + 1 + window);
+                        let (before, b) = mean(i.saturating_sub(window), i);
+                        let complete = (a.min(b) as f32 * 2.0 / window as f32).min(1.0);
+                        complete
+                            * if gradient[i] > 0.0 {
+                                after - before
+                            } else {
+                                before - after
+                            }
+                    };
+                    // One candidate per edge: the steepest point of each
+                    // same-sign gradient lobe gives the angle.
+                    let lobe_end = |i: usize, step: isize| {
+                        let mut j = i as isize;
+                        while (0..grid.bins as isize).contains(&(j + step))
+                            && gradient[(j + step) as usize] * gradient[i] > 0.0
+                        {
+                            j += step;
+                        }
+                        j as usize
+                    };
+                    let mut peaks: Vec<usize> = Vec::new();
+                    for &i in &candidates {
+                        let (lo, hi) = (lobe_end(i, -1), lobe_end(i, 1));
+                        match peaks.iter_mut().find(|j| (lo..=hi).contains(*j)) {
+                            Some(j) if gradient[i].abs() > gradient[*j].abs() => *j = i,
+                            Some(_) => {}
+                            None => peaks.push(i),
+                        }
+                    }
+                    // Both must hold: a steep edge (not a wiggle near the
+                    // wing) and a broad shoulder behind it (not a line).
+                    let floor = 1e-3 * s.contrast_cap;
+                    let mut ranked: Vec<(usize, f32)> = peaks
+                        .iter()
+                        .map(|&i| (i, gradient[i].abs() * (shoulder(i).max(0.0) + floor)))
+                        .collect();
+                    ranked.sort_unstable_by(|(a, sa), (b, sb)| {
+                        sb.total_cmp(sa)
+                            .then(gradient[*b].abs().total_cmp(&gradient[*a].abs()))
+                    });
+                    candidates = ranked.into_iter().map(|(i, _)| i).collect();
+                    state.filtered = level.clone();
+                } else {
+                    candidates
+                        .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));
+                }
+                // The leading edge is where the wing gives way to background
+                // toward the head; the trailing edge is the reverse. Choosing
+                // by polarity, not position, keeps a stray feature beyond the
+                // wing (an antenna, the arena wall) from taking its place.
+                let polarity = match s.primary_edge {
+                    PrimaryEdge::Strongest => None,
+                    PrimaryEdge::TowardHead => Some(-self.sense(index)),
+                    PrimaryEdge::TowardTail => Some(self.sense(index)),
+                };
+                let by_polarity = polarity
+                    .and_then(|sign| candidates.iter().position(|&i| gradient[i] * sign > 0.0));
+                if let Some(k) = by_polarity {
+                    let i = candidates.remove(k);
+                    candidates.insert(0, i);
+                }
                 let mut selected: Vec<usize> = Vec::new();
                 for i in candidates {
                     // Suppress a complete same-sign derivative lobe, not only its peak.
@@ -428,6 +680,8 @@ impl Tracker {
                 if !state.image_angles.is_empty() {
                     let selected = match s.primary_edge {
                         PrimaryEdge::Strongest => 0,
+                        _ if by_polarity.is_some() => 0,
+                        // No edge of that polarity: the outermost one.
                         PrimaryEdge::TowardHead => {
                             state
                                 .angles_rad
@@ -520,5 +774,31 @@ impl Tracker {
         };
         let handedness = (f.x * w.y - f.y * w.x).signum();
         if index == 0 { handedness } else { -handedness }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fast_envelope_matches_a_direct_window_scan() {
+        let profile: Vec<f32> = (0..97).map(|i| ((i * 37 % 23) as f32).sin()).collect();
+        for radius in [1, 2, 5, 13, 60] {
+            for minimum in [true, false] {
+                let direct: Vec<f32> = (0..profile.len())
+                    .map(|i| {
+                        let lo = i.saturating_sub(radius);
+                        let hi = (i + radius).min(profile.len() - 1);
+                        let w = profile[lo..=hi].iter().copied();
+                        if minimum {
+                            w.fold(f32::INFINITY, f32::min)
+                        } else {
+                            w.fold(f32::NEG_INFINITY, f32::max)
+                        }
+                    })
+                    .collect();
+                assert_eq!(envelope(&profile, radius, minimum), direct);
+            }
+        }
     }
 }

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rekkefly": {
+      "command": "cargo",
+      "args": ["run", "--release", "--quiet", "--", "mcp", "--config-dir", "configs"]
+    }
+  }
+}

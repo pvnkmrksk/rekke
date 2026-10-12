@@ -23,17 +23,19 @@ def common(destination, notices):
     destination.mkdir(parents=True, exist_ok=True)
     for name in DOCS:
         shutil.copy2(ROOT / name, destination / name)
-    shutil.copytree(ROOT / 'configs', destination / 'configs', ignore=shutil.ignore_patterns('*.png', '*.jsonl', 'recordings'))
+    shutil.copytree(ROOT / 'configs', destination / 'configs', ignore=shutil.ignore_patterns('*.png', '*.jsonl', 'recordings', '.*.lock'))
     shutil.copytree(ROOT / 'examples', destination / 'examples', ignore=shutil.ignore_patterns('__pycache__'))
+    # The sample plays when no camera is connected, and for first-time users.
+    shutil.copytree(ROOT / 'samples', destination / 'samples')
     (destination / 'THIRD_PARTY_NOTICES.txt').write_text(notices, encoding='utf-8')
 
 
 def dependency_notices():
-    cargo = os.environ.get('REKKE_CARGO', 'cargo')
+    cargo = os.environ.get('REKKEFLY_CARGO', 'cargo')
     metadata = json.loads(subprocess.check_output([cargo, 'metadata', '--locked', '--offline', '--format-version', '1', '--manifest-path', str(ROOT / 'Cargo.toml')], text=True, encoding='utf-8'))
-    notices = ['Rekke third-party dependency notices\nFull Cargo dependency set, including target-specific dependencies.\n']
+    notices = ['Rekkefly third-party dependency notices\nFull Cargo dependency set, including target-specific dependencies.\n']
     for dependency in sorted(metadata['packages'], key=lambda p: (p['name'], p['version'])):
-        if dependency['name'] == 'rekke':
+        if dependency['name'] == 'rekkefly':
             continue
         notices.append(f"\n{'=' * 72}\n{dependency['name']} {dependency['version']}\nLicense: {dependency.get('license')}\nRepository: {dependency.get('repository')}\n")
         directory = Path(dependency['manifest_path']).parent
@@ -109,48 +111,48 @@ def main():
     output = args.out.resolve()
     output.mkdir(parents=True, exist_ok=True)
     notices = dependency_notices()
-    with tempfile.TemporaryDirectory(prefix='rekke-package-') as tmp:
+    with tempfile.TemporaryDirectory(prefix='rekkefly-package-') as tmp:
         stage = Path(tmp)
-        package = stage / f'Rekke-{VERSION}-{args.platform}'
+        package = stage / f'Rekkefly-{VERSION}-{args.platform}'
         package.mkdir()
-        executable = 'rekke.exe' if args.platform.startswith('windows') else 'rekke'
+        executable = 'rekkefly.exe' if args.platform.startswith('windows') else 'rekkefly'
         shutil.copy2(binary, package / executable)
         common(package, notices)
-        shutil.copy2(ROOT / 'assets/rekke-256.png', package / 'rekke.png')
+        shutil.copy2(ROOT / 'assets/rekkefly-256.png', package / 'rekkefly.png')
         if args.platform.startswith('macos'):
-            app = package / 'Rekke.app'
+            app = package / 'Rekkefly.app'
             macos = app / 'Contents/MacOS'
             macos.mkdir(parents=True)
-            shutil.copy2(binary, macos / 'rekke')
+            shutil.copy2(binary, macos / 'rekkefly')
             resources = app / 'Contents/Resources'
             common(resources, notices)
-            shutil.copy2(ROOT / 'assets/Rekke.icns', resources / 'Rekke.icns')
+            shutil.copy2(ROOT / 'assets/Rekkefly.icns', resources / 'Rekkefly.icns')
             with (app / 'Contents/Info.plist').open('wb') as stream:
                 plistlib.dump({
-                    'CFBundleName': 'Rekke', 'CFBundleDisplayName': 'Rekke',
-                    'CFBundleIdentifier': 'io.github.pvnkmrksk.rekke', 'CFBundleExecutable': 'rekke',
-                    'CFBundlePackageType': 'APPL', 'CFBundleIconFile': 'Rekke.icns',
+                    'CFBundleName': 'Rekkefly', 'CFBundleDisplayName': 'Rekkefly',
+                    'CFBundleIdentifier': 'io.github.pvnkmrksk.rekkefly', 'CFBundleExecutable': 'rekkefly',
+                    'CFBundlePackageType': 'APPL', 'CFBundleIconFile': 'Rekkefly.icns',
                     'CFBundleVersion': VERSION, 'CFBundleShortVersionString': VERSION,
                     'LSMinimumSystemVersion': '12.0', 'NSHighResolutionCapable': True,
-                    'NSCameraUsageDescription': 'Rekke uses your selected camera to track insect wings and body movement.',
+                    'NSCameraUsageDescription': 'Rekkefly uses your selected camera to track insect wings and body movement.',
                 }, stream)
-            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Bogong Moth Example', '--config configs/bogong-moth.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
                 script = package / f'Launch {label}.command'
-                script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./Rekke.app/Contents/MacOS/rekke {arguments}\n')
+                script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./Rekkefly.app/Contents/MacOS/rekkefly {arguments}\n')
                 script.chmod(0o755)
             subprocess.run(['xattr', '-cr', str(app)], check=True)
             subprocess.run(['codesign', '--force', '--sign', '-', str(app)], check=True)
             subprocess.run(['xattr', '-cr', str(app)], check=True)
             subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
             import dmgbuild
-            dmg = output / f'Rekke-{VERSION}-{args.platform}.dmg'
-            dmgbuild.build_dmg(str(dmg), f'Rekke {VERSION}', settings={
+            dmg = output / f'Rekkefly-{VERSION}-{args.platform}.dmg'
+            dmgbuild.build_dmg(str(dmg), f'Rekkefly {VERSION}', settings={
                 'files': [str(app), (str(ROOT / 'INSTALL.txt'), 'Install help.txt')],
                 'symlinks': {'Applications': '/Applications'}, 'format': 'UDZO', 'filesystem': 'HFS+',
-                'background': str(ROOT / 'assets/dmg-background.tiff'), 'icon': str(ROOT / 'assets/Rekke.icns'),
+                'background': str(ROOT / 'assets/dmg-background.tiff'), 'icon': str(ROOT / 'assets/Rekkefly.icns'),
                 'window_rect': ((150, 150), (640, 420)), 'default_view': 'icon-view',
                 'icon_size': 96, 'text_size': 13, 'label_pos': 'bottom', 'arrange_by': None,
-                'icon_locations': {'Rekke.app': (180, 200), 'Applications': (460, 200), 'Install help.txt': (560, 300)},
+                'icon_locations': {'Rekkefly.app': (180, 200), 'Applications': (460, 200), 'Install help.txt': (560, 300)},
                 'hide_extensions': ['Install help.txt'],
                 'show_status_bar': False, 'show_tab_view': False, 'show_toolbar': False,
                 'show_pathbar': False, 'show_sidebar': False,
@@ -158,45 +160,45 @@ def main():
             subprocess.run(['hdiutil', 'verify', str(dmg)], check=True)
             # Verify the copied bundle, not only the staging directory: Finder
             # attributes added by a DMG tool can invalidate an app signature.
-            with tempfile.TemporaryDirectory(prefix='rekke-dmg-check-') as mount:
+            with tempfile.TemporaryDirectory(prefix='rekkefly-dmg-check-') as mount:
                 subprocess.run(['hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', mount, str(dmg)], check=True)
                 try:
-                    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(Path(mount) / 'Rekke.app')], check=True)
+                    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(Path(mount) / 'Rekkefly.app')], check=True)
                 finally:
                     subprocess.run(['hdiutil', 'detach', mount], check=True)
             print(dmg)
         elif args.platform.startswith('windows'):
-            shutil.copy2(ROOT / 'assets/rekke.ico', package / 'rekke.ico')
+            shutil.copy2(ROOT / 'assets/rekkefly.ico', package / 'rekkefly.ico')
             defaults = package / 'defaults'
             shutil.copytree(package / 'configs', defaults / 'configs')
-            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('Demo', '--config configs/demo.toml'), ('Bogong Moth Example', '--config configs/bogong-moth.toml'), ('Camera A', '--config configs/camera-a.toml'), ('Camera B', '--config configs/camera-b.toml'), ('All Rigs', '--rigs configs/rigs.toml')]:
                 (package / f'Launch {label}.cmd').write_text(f'@echo off\r\ncd /d "%~dp0"\r\nrekke.exe {arguments}\r\n', newline='')
-            setup = output / f'Rekke-{VERSION}-windows-x64-setup.exe'
-            command = os.environ.get('REKKE_MAKENSIS', 'makensis')
+            setup = output / f'Rekkefly-{VERSION}-windows-x64-setup.exe'
+            command = os.environ.get('REKKEFLY_MAKENSIS', 'makensis')
             subprocess.run([command, f'/DVERSION={VERSION}', f'/DPACKAGE={package}', f'/DOUTPUT={setup}', str(ROOT / 'scripts/windows-installer.nsi')], check=True)
             print(setup)
         else:
-            for label, arguments in [('demo', '--config configs/demo.toml'), ('all-rigs', '--rigs configs/rigs.toml')]:
+            for label, arguments in [('demo', '--config configs/demo.toml'), ('bogong-moth-example', '--config configs/bogong-moth.toml'), ('all-rigs', '--rigs configs/rigs.toml')]:
                 script = package / f'launch-{label}.sh'
-                script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./rekke {arguments}\n')
+                script.write_text(f'#!/bin/sh\ncd "$(dirname "$0")" || exit 1\nexec ./rekkefly {arguments}\n')
                 script.chmod(0o755)
-            tarball = output / f'Rekke-{VERSION}-linux-x64.tar.gz'
+            tarball = output / f'Rekkefly-{VERSION}-linux-x64.tar.gz'
             with tarfile.open(tarball, 'w:gz') as tar:
                 tar.add(package, arcname=package.name)
             print(tarball)
             deb = stage / 'debian'
             (deb / 'DEBIAN').mkdir(parents=True)
             (deb / 'usr/bin').mkdir(parents=True)
-            shutil.copy2(binary, deb / 'usr/bin/rekke')
-            common(deb / 'usr/share/rekke', notices)
+            shutil.copy2(binary, deb / 'usr/bin/rekkefly')
+            common(deb / 'usr/share/rekkefly', notices)
             icons = deb / 'usr/share/icons/hicolor/256x256/apps'
             icons.mkdir(parents=True)
-            shutil.copy2(ROOT / 'assets/rekke-256.png', icons / 'rekke.png')
+            shutil.copy2(ROOT / 'assets/rekkefly-256.png', icons / 'rekkefly.png')
             desktop = deb / 'usr/share/applications'
             desktop.mkdir(parents=True)
-            (desktop / 'rekke.desktop').write_text('[Desktop Entry]\nType=Application\nName=Rekke\nComment=Insect wing tracking\nExec=rekke\nIcon=rekke\nTerminal=false\nCategories=Science;Education;\nStartupWMClass=rekke\n')
-            (deb / 'DEBIAN/control').write_text(f'Package: rekke\nVersion: {VERSION}\nSection: science\nPriority: optional\nArchitecture: amd64\nMaintainer: pvnkmrksk <pvnkmrksk@users.noreply.github.com>\nDepends: libc6 (>= 2.35), libgcc-s1, libv4l-0, libx11-6, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libegl1, libgl1, libxcursor1, libxi6, libxrandr2\nHomepage: https://github.com/pvnkmrksk/rekke\nDescription: Native Rust insect wing tracking with ZMQ output\n Directly editable tracking sectors, saved backgrounds, independent rigs\n and lossless video recording.\n')
-            destination = output / f'rekke_{VERSION}_amd64.deb'
+            (desktop / 'rekkefly.desktop').write_text('[Desktop Entry]\nType=Application\nName=Rekkefly\nComment=The new Kinefly: wing tracking for tethered insects\nKeywords=kinefly;insect;wing;tracking;drosophila;flight;\nExec=rekkefly %f\nIcon=rekkefly\nTerminal=false\nCategories=Science;Education;\nMimeType=video/x-msvideo;video/avi;\nStartupWMClass=rekkefly\nActions=rigs;sample;\n\n[Desktop Action rigs]\nName=Start all rigs (rigs.toml)\nExec=rekkefly --rigs\n\n[Desktop Action sample]\nName=Open the Bogong moth example\nExec=rekkefly /usr/share/rekkefly/samples/bogong-moth.avi --loop\n')
+            (deb / 'DEBIAN/control').write_text(f'Package: rekkefly\nVersion: {VERSION}\nSection: science\nPriority: optional\nArchitecture: amd64\nMaintainer: pvnkmrksk <pvnkmrksk@users.noreply.github.com>\nDepends: libc6 (>= 2.35), libgcc-s1, libv4l-0, libx11-6, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libegl1, libgl1, libxcursor1, libxi6, libxrandr2\nReplaces: rekke\nConflicts: rekke\nHomepage: https://github.com/pvnkmrksk/rekke\nDescription: The new Kinefly: real-time wing tracking for tethered insects\n Native successor to Kinefly and Kinefly Docker. Tracks wing stroke\n envelopes from cameras or video files, ignores legs and antennae,\n publishes Kinefly-compatible ZMQ and runs many rigs from one command.\n')
+            destination = output / f'rekkefly_{VERSION}_amd64.deb'
             subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(deb), str(destination)], check=True)
             print(destination)
         archive_zip(package, output)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Receive Rekke UDP JSON using only Python's standard library."""
+"""Receive Rekkefly UDP JSON using only Python's standard library."""
 import argparse
 import json
 import socket

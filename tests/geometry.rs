@@ -1,8 +1,17 @@
-use rekke::{
+use rekkefly::{
     config::{Config, Method, Point},
     geometry::{self, Handle, move_handle},
     tracker::wrap_angle,
 };
+/// The 0.5 default geometry these interaction tests were written against.
+fn classic() -> Config {
+    let mut c = Config::default();
+    c.tracking.left.start_deg = 115.0;
+    c.tracking.left.span_deg = 90.0;
+    c.tracking.right.start_deg = -25.0;
+    c.tracking.right.span_deg = 90.0;
+    c
+}
 fn point(actual: Point, x: f32, y: f32) {
     assert!(
         (actual.x - x).abs() < 0.002 && (actual.y - y).abs() < 0.002,
@@ -28,7 +37,7 @@ fn symmetric(c: &Config) {
 }
 #[test]
 fn moving_either_wing_hinge_mirrors_the_opposite_wing() {
-    let mut c = Config::default();
+    let mut c = classic();
     assert!(!c.tracking.asymmetric);
     move_handle(&mut c, Handle::Hinge(0), Point { x: 280.0, y: 220.0 }).unwrap();
     point(c.tracking.left.hinge, 280.0, 220.0);
@@ -43,7 +52,7 @@ fn corner_drags_change_radius_and_angle_together_and_mirror_both_boundaries() {
         (0, Handle::Start(0), 105.0_f32, 100.0),
         (1, Handle::End(1), 75.0, 100.0),
     ] {
-        let mut c = Config::default();
+        let mut c = classic();
         let p = c.sectors()[i].hinge.at(150.0, degrees.to_radians());
         move_handle(&mut c, handle, p).unwrap();
         assert!((c.sectors()[i].outer_radius - 150.0).abs() < 0.001);
@@ -53,7 +62,7 @@ fn corner_drags_change_radius_and_angle_together_and_mirror_both_boundaries() {
 }
 #[test]
 fn inner_and_outer_radius_drags_mirror_even_a_disabled_wing() {
-    let mut c = Config::default();
+    let mut c = classic();
     c.tracking.right.enabled = false;
     c.tracking.right.method = Method::WingBlur;
     c.tracking.right.threshold = 0.03;
@@ -68,7 +77,7 @@ fn inner_and_outer_radius_drags_mirror_even_a_disabled_wing() {
 }
 #[test]
 fn body_center_translates_all_anchors_and_regions_without_changing_shape() {
-    let mut c = Config::default();
+    let mut c = classic();
     let old = c.clone();
     let center = geometry::center(&c);
     move_handle(
@@ -93,7 +102,7 @@ fn body_center_translates_all_anchors_and_regions_without_changing_shape() {
 }
 #[test]
 fn head_rotation_reorients_every_region_about_the_updated_midpoint() {
-    let mut c = Config::default();
+    let mut c = classic();
     let old = c.clone();
     move_handle(&mut c, Handle::Head, Point { x: 475.0, y: 330.0 }).unwrap();
     point(c.head, 475.0, 330.0);
@@ -113,7 +122,7 @@ fn head_rotation_reorients_every_region_about_the_updated_midpoint() {
 }
 #[test]
 fn tail_rotation_moves_the_whole_frame_in_the_other_direction() {
-    let mut c = Config::default();
+    let mut c = classic();
     move_handle(&mut c, Handle::Tail, Point { x: 475.0, y: 175.0 }).unwrap();
     point(c.head, 320.0, 175.0);
     point(c.tail, 475.0, 175.0);
@@ -126,7 +135,7 @@ fn tail_rotation_moves_the_whole_frame_in_the_other_direction() {
 }
 #[test]
 fn wing_mirroring_uses_the_rotated_body_axis() {
-    let mut c = Config::default();
+    let mut c = classic();
     move_handle(&mut c, Handle::Head, Point { x: 475.0, y: 330.0 }).unwrap();
     move_handle(&mut c, Handle::Hinge(0), Point { x: 430.0, y: 280.0 }).unwrap();
     // The body now runs horizontally at y=330, so reflect in Y rather than X.
@@ -138,7 +147,7 @@ fn wing_mirroring_uses_the_rotated_body_axis() {
 }
 #[test]
 fn asymmetric_mode_keeps_other_regions_in_place() {
-    let mut c = Config::default();
+    let mut c = classic();
     geometry::set_asymmetric(&mut c, true, 0).unwrap();
     let right = c.tracking.right.clone();
     move_handle(&mut c, Handle::Hinge(0), Point { x: 285.0, y: 235.0 }).unwrap();
@@ -164,7 +173,7 @@ fn asymmetric_mode_keeps_other_regions_in_place() {
 }
 #[test]
 fn turning_asymmetry_off_restores_geometry_from_the_last_edited_wing() {
-    let mut c = Config::default();
+    let mut c = classic();
     geometry::set_asymmetric(&mut c, true, 0).unwrap();
     move_handle(&mut c, Handle::Hinge(1), Point { x: 370.0, y: 245.0 }).unwrap();
     let p = c.tracking.right.hinge.at(130.0, 75.0_f32.to_radians());
@@ -177,7 +186,7 @@ fn turning_asymmetry_off_restores_geometry_from_the_last_edited_wing() {
 }
 #[test]
 fn numeric_geometry_edits_follow_the_same_symmetry_rules() {
-    let mut c = Config::default();
+    let mut c = classic();
     let mut right = c.tracking.right.clone();
     right.hinge.x = 355.0;
     right.span_deg = 115.0;
@@ -192,7 +201,7 @@ fn numeric_geometry_edits_follow_the_same_symmetry_rules() {
 }
 #[test]
 fn invalid_coupled_moves_are_atomic_and_translation_stops_at_the_image_border() {
-    let mut c = Config::default();
+    let mut c = classic();
     let old = c.clone();
     let tail = c.tail;
     assert!(move_handle(&mut c, Handle::Head, tail).is_err());
@@ -210,7 +219,7 @@ fn invalid_coupled_moves_are_atomic_and_translation_stops_at_the_image_border() 
 }
 #[test]
 fn asymmetric_mode_persists_and_older_configs_default_to_symmetric() {
-    let mut c = Config::default();
+    let mut c = classic();
     let old = toml::to_string_pretty(&c)
         .unwrap()
         .replace("asymmetric = false\n", "");
