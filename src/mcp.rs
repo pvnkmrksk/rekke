@@ -1097,7 +1097,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "measure",
             "Measure a rig for a while",
-            "Collect every frame of a running rig for some seconds and summarise each angle in degrees (frames measured, mean, spread, minimum, maximum), for example the mean L−R of a trial. Optionally writes every frame to a CSV. Blocks for `seconds`.",
+            "Collect every frame of a running rig for some seconds and summarise each angle in degrees (frames measured, mean, spread, minimum, maximum), for example the mean L−R of a trial. skipped_frames counts gaps in the camera's frame numbers: exposures the camera dropped, or that could not be delivered. Optionally writes every frame to a CSV. Blocks for `seconds`.",
             json!({"rig": rig.clone(),
                    "seconds": number("How long to measure (default 5, at most 600)."),
                    "csv": string("Also write every frame here (degrees).")}),

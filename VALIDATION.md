@@ -5,7 +5,7 @@ This file records what was checked for this release, how, and what still needs c
 ## Checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
 
 - `cargo fmt --check` passes. `cargo clippy --all-targets -- -D warnings` passes with default features and with `--no-default-features`.
-- **103 tests pass** with default features (98 without GUI/camera); 16 report-only tests (comparison tables, figures, throughput) are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
+- **104 tests pass** with default features (99 without GUI/camera); 16 report-only tests (comparison tables, figures, throughput) are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
 - The Linux `.deb`, tarball and ZIP were built with `scripts/package.py`, and the `.deb` was installed and smoke-tested:
   - `--list-cameras` works with no camera present.
   - The demo config and the bundled example run headless (`/usr/share/rekkefly/samples/bogong-moth.avi --fast`).

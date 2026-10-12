@@ -296,3 +296,73 @@ fn a_video_opened_for_one_run_brings_its_own_markers() {
         );
     }
 }
+#[test]
+fn a_subscription_receives_every_frame_in_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clip.avi");
+    write_video(&path, 64, 48, 25, 10);
+    let mut config = Config::default();
+    config.output.enabled = false;
+    config.output.zmq_enabled = false;
+    config.source = SourceConfig::Video {
+        path: path.to_string_lossy().into_owned(),
+        width: 64,
+        height: 48,
+        fps: 10,
+        repeat: true,
+        realtime: false,
+    };
+    // Markers that fit a 64×48 frame.
+    let config = config.with_geometry_of(&Config::default()).unwrap();
+    let options = StartOptions {
+        limit: Some(400),
+        ..Default::default()
+    };
+    let engine = Engine::start_with(config, dir.path().join("rig.toml"), options).unwrap();
+    let receiver = engine.subscribe(16).unwrap();
+    let mut sequences = Vec::new();
+    // Slower than tracking: the bounded queue fills, and later frames are
+    // dropped for this subscriber only, never blocking tracking.
+    while let Ok(m) = receiver.recv_timeout(Duration::from_secs(10)) {
+        sequences.push(m.sequence);
+        if sequences.len() < 16 {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    let state = wait(&engine, |s| s.finished);
+    assert!(state.error.is_none(), "{:?}", state.error);
+    assert_eq!(
+        state.frames, 400,
+        "tracking never waited for the subscriber"
+    );
+    assert!(sequences.windows(2).all(|w| w[1] > w[0]), "in order");
+    assert_eq!(*sequences.last().unwrap(), 399, "until the end");
+    // A subscriber that keeps up gets every frame.
+    let engine = Engine::start_with(
+        engine_config(&path),
+        dir.path().join("rig2.toml"),
+        StartOptions {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let receiver = engine.subscribe(1024).unwrap();
+    let received: Vec<u64> = receiver.iter().map(|m| m.sequence).collect();
+    let first = received[0];
+    assert_eq!(received, (first..200).collect::<Vec<_>>(), "no gaps");
+}
+fn engine_config(path: &std::path::Path) -> Config {
+    let mut config = Config::default();
+    config.output.enabled = false;
+    config.output.zmq_enabled = false;
+    config.source = SourceConfig::Video {
+        path: path.to_string_lossy().into_owned(),
+        width: 64,
+        height: 48,
+        fps: 10,
+        repeat: true,
+        realtime: false,
+    };
+    config.with_geometry_of(&Config::default()).unwrap()
+}

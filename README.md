@@ -579,7 +579,7 @@ sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev lib
 ```sh
 git clone https://github.com/pvnkmrksk/rekke.git && cd rekke
 cargo run --release -- samples/bogong-moth.avi --loop  # try it
-cargo test --locked                                    # 103 tests, including real moth footage and the MCP server
+cargo test --locked                                    # 104 tests, including real moth footage and the MCP server
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --release --locked --no-default-features   # processing only, no GUI/camera
 ```
