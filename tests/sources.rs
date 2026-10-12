@@ -151,7 +151,12 @@ fn a_busy_output_port_turns_outputs_off_in_the_gui_but_fails_headless() {
     let state = wait(&engine, |s| s.finished);
     assert!(state.error.is_none(), "{:?}", state.error);
     assert_eq!(state.frames, 3);
-    assert!(state.output_error.unwrap().contains("unique sender port"));
+    let error = state.output_error.unwrap();
+    assert!(error.contains("unique sender port"), "{error}");
+    assert!(
+        error.starts_with("UDP off"),
+        "only the failing output: {error}"
+    );
 }
 #[test]
 fn run_only_overrides_apply_but_are_never_saved() {
@@ -182,4 +187,16 @@ fn run_only_overrides_apply_but_are_never_saved() {
     assert_eq!(persisted.output, saved.output);
     assert_eq!(persisted.recording, saved.recording);
     assert_eq!(Overrides::default().persistable(&running, &saved), running);
+    // A camera chosen for a video config keeps that config's image size,
+    // because the markers are in its pixel coordinates.
+    let mut video = saved.clone();
+    video.source = SourceConfig::Video {
+        path: "a.avi".into(),
+        width: 1280,
+        height: 1024,
+        fps: 50,
+        repeat: false,
+        realtime: true,
+    };
+    assert_eq!(camera_source(&video, "0").dimensions(), (1280, 1024, 50));
 }

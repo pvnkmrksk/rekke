@@ -382,7 +382,7 @@ fn run() -> Result<()> {
             // A rig launched for an experiment must show its camera error,
             // never a sample that could be mistaken for live data.
             fallback: !args.supervised,
-            degrade_output: true,
+            degrade_output: !args.supervised,
         };
         let result = rekke::gui::launch(rekke::gui::Launch {
             saved,

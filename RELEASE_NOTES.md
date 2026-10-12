@@ -17,7 +17,8 @@ Rekke (ರೆಕ್ಕೆ, Kannada for wing) tracks the wings of tethered insect
 - **Multi-rig manifests:** each `[[rigs]]` entry may set `label`, `device` (or `video`), `zmq_port`, `udp_port`, `udp_target` and `record`. Missing rig configs are created automatically, and shared cameras, ports or files are refused before anything starts.
 - **One window per config:** a second window takes the next free rig config (and creates `camera-c.toml` and so on when needed), so double-clicking twice gives two independent rigs. A **New window** button does the same.
 - Run-only overrides on the command line: `--device`, `--video`, `--label`, `--zmq-port`, `--udp-port`, `--udp-target`.
-- **Resilience:** in the GUI, a busy output port turns that output off with a visible notice instead of stopping tracking. Headless runs and rigs still fail loudly.
+- **Resilience:** in the GUI, a busy output port turns off only that output, with a visible notice, instead of stopping tracking. Headless runs and launcher-started rigs still fail loudly.
+- Cameras that offer grayscale modes can now use them (fewer conversions), and switching a video config to a camera keeps its image size.
 - **Configs:** every key in the shipped configs is documented, and saving keeps your comments.
 - **New icon:** a fly wing with its motion-blur stroke envelope.
 - **Diagnostics:** the intensity-profile plot auto-scales and marks the detected edges. The window title shows the label, source and ZMQ port.

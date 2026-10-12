@@ -942,6 +942,11 @@ impl App {
     }
     /// Switch this run to another source without touching the saved config.
     fn use_source(&mut self, source: Option<SourceConfig>, note: Option<String>) {
+        // Source edits made in Settings are already saved; remember them so a
+        // temporary source never writes an older one back.
+        if self.overrides.source.is_none() {
+            self.saved.source = self.config.source.clone();
+        }
         self.overrides.source = source;
         self.overrides.note = note;
         self.config.source = self
@@ -1380,6 +1385,69 @@ mod tests {
         move_handle(&mut c, Handle::Start(1), p).unwrap();
         assert!((c.tracking.right.span_deg - 115.0).abs() < 0.001);
         c.validate().unwrap();
+    }
+    fn quiet_app(config: Config) -> App {
+        App {
+            autosaver: None,
+            last_autosave: config.clone(),
+            shutdown: Arc::new(AtomicBool::new(false)),
+            saved: config.clone(),
+            config,
+            overrides: Overrides::default(),
+            options: StartOptions::default(),
+            title: String::new(),
+            path: PathBuf::from("unused-gui.toml"),
+            engine: None,
+            selected: 0,
+            texture: None,
+            latest: None,
+            last_sequence: None,
+            last_display: None,
+            history: VecDeque::new(),
+            drag: None,
+            last_wing: 0,
+            show_difference: false,
+            show_settings: false,
+            show_diagnostics: false,
+            dirty: false,
+            status: String::new(),
+            restart_pending: false,
+            cameras: Vec::new(),
+            camera_query: None,
+            screenshot: None,
+            screenshot_requested: false,
+            started: Instant::now(),
+        }
+    }
+    #[test]
+    fn a_dropped_video_never_overwrites_a_camera_chosen_in_settings() {
+        let mut config = Config::demo();
+        config.source = crate::config::camera_source(&config, "auto");
+        config.output.enabled = false;
+        let mut app = quiet_app(config);
+        // The user picks camera 1 in Settings; autosave stores it.
+        app.config.source = crate::config::camera_source(&app.config, "1");
+        assert_eq!(app.persistable().source, app.config.source);
+        let video = SourceConfig::Video {
+            path: "/nonexistent/dropped.avi".into(),
+            width: 640,
+            height: 480,
+            fps: 30,
+            repeat: true,
+            realtime: true,
+        };
+        app.use_source(Some(video.clone()), Some("dropped".into()));
+        assert_eq!(app.config.source, video);
+        let saved = app.persistable().source;
+        assert!(
+            matches!(&saved, SourceConfig::Camera { device, .. } if device == "1"),
+            "{saved:?}"
+        );
+        app.use_source(None, None);
+        assert!(matches!(&app.config.source, SourceConfig::Camera { device, .. } if device == "1"));
+        if let Some(engine) = app.engine.take() {
+            engine.wait();
+        }
     }
     #[test]
     fn a_complete_fast_drag_in_one_frame_edits_the_unselected_wing() {

@@ -352,7 +352,9 @@ pub struct AviReader<R> {
     movi: Vec<(u64, u64)>,
     segment: usize,
     position: u64,
-    last: Vec<u8>,
+    /// Body offset and size of the last stored frame, for zero-length
+    /// "repeat previous frame" chunks (read again only when needed).
+    last: Option<(u64, u64)>,
 }
 fn read_u32(r: &mut impl Read) -> std::io::Result<u32> {
     let mut b = [0; 4];
@@ -572,7 +574,7 @@ impl<R: Read + Seek> AviReader<R> {
             movi,
             segment: 0,
             position: first,
-            last: Vec::new(),
+            last: None,
         })
     }
     pub fn info(&self) -> &VideoInfo {
@@ -582,7 +584,7 @@ impl<R: Read + Seek> AviReader<R> {
     pub fn rewind(&mut self) {
         self.segment = 0;
         self.position = self.movi[0].0;
-        self.last.clear();
+        self.last = None;
     }
     /// Read the next stored video chunk. `Ok(false)` marks the end of the
     /// file, including a cleanly truncated final chunk.
@@ -617,18 +619,21 @@ impl<R: Read + Seek> AviReader<R> {
             if !video {
                 continue;
             }
-            if size == 0 {
-                // A zero-length chunk repeats the previous frame.
-                if self.last.is_empty() {
-                    continue;
+            // A zero-length chunk repeats the previous frame. It counts as a
+            // frame both when playing and when skipping, once a frame exists.
+            let (offset, length) = if size == 0 {
+                match self.last {
+                    Some(previous) => previous,
+                    None => continue,
                 }
-                data.clone_from(&self.last);
-                return Ok(true);
-            }
+            } else {
+                self.last = Some((body, size));
+                (body, size)
+            };
             if decode {
-                data.resize(size as usize, 0);
+                self.input.seek(SeekFrom::Start(offset))?;
+                data.resize(length as usize, 0);
                 self.input.read_exact(data)?;
-                self.last.clone_from(data);
             }
             return Ok(true);
         }
@@ -822,6 +827,32 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 2);
+    }
+    #[test]
+    fn zero_length_repeat_chunks_count_the_same_when_playing_and_skipping() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dropped.avi");
+        let mut writer = AviWriter::create(&path, 8, 8, 10, 1, VideoFormat::Raw).unwrap();
+        // Frames: A, repeat, repeat, B, repeat.
+        writer.write(&[10; 64]).unwrap();
+        writer.write(&[]).unwrap();
+        writer.write(&[]).unwrap();
+        writer.write(&[20; 64]).unwrap();
+        writer.write(&[]).unwrap();
+        writer.finish().unwrap();
+        let mut reader = AviReader::open(&path).unwrap();
+        let (mut c, mut p) = (Vec::new(), Vec::new());
+        let mut played = Vec::new();
+        while reader.next_frame(&mut c, &mut p).unwrap() {
+            played.push(p[0]);
+        }
+        assert_eq!(played, [10, 10, 10, 20, 20]);
+        for start in 0..5 {
+            reader.rewind();
+            assert_eq!(reader.skip(start).unwrap(), start);
+            assert!(reader.next_frame(&mut c, &mut p).unwrap());
+            assert_eq!(p[0], played[start as usize], "start {start}");
+        }
     }
     #[test]
     fn bottom_up_palette_dib_is_converted_to_top_down_luma() {

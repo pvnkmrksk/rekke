@@ -406,7 +406,7 @@ sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev lib
 ```sh
 git clone https://github.com/pvnkmrksk/rekke.git && cd rekke
 cargo run --release -- samples/sample-fly.avi --loop    # try it
-cargo test --locked                                     # 85 tests
+cargo test --locked                                     # 87 tests
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --release --locked --no-default-features    # processing only, no GUI/camera
 ```

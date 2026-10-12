@@ -5,7 +5,7 @@ This file records what was checked for this release, how, and what still needs c
 ## Checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
 
 - `cargo fmt --check` passes. `cargo clippy --all-targets -- -D warnings` passes with default features and with `--no-default-features`.
-- **85 tests pass** with default features (81 without GUI/camera); 4 report-only tests are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
+- **87 tests pass** with default features (82 without GUI/camera); 4 report-only tests are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
 - The Linux `.deb`, tarball and ZIP were built with `scripts/package.py`, and the `.deb` was installed and smoke-tested:
   - `--list-cameras` works with no camera present.
   - The demo config and the bundled sample run headless (`/usr/share/rekke/samples/sample-fly.avi --fast`).
@@ -13,6 +13,12 @@ This file records what was checked for this release, how, and what still needs c
   - Plain `rekke --rigs --demo --headless` starts both seeded rigs from the user folder.
 - **Rig launcher:** three rigs from one manifest (`label`, `device`, ports) ran headless with `--demo --record`. Each wrote 60/60 frames to its own MJPEG recording (about 1.7 MB per 60 frames at 640×480, against about 18 MB raw). A recording was then replayed natively to JSONL with `--fast --headless`.
 - **GUI:** screenshots of the main window, Settings, diagnostics and the no-camera banner were rendered under Xvfb and checked by eye (`docs/images`). Marker dragging is covered by the existing egui event tests.
+- **Independent code review** of the new code checked the AVI reader against FFmpeg-made files: Y800, bgr24, pal8, bgra, MJPEG 4:2:2, PNG, audio-first files, a 1.15 GB OpenDML file and an interrupted FFmpeg recording. It also checked that FFmpeg reads Rekke's raw, PNG and MJPEG files at odd sizes. It found five bugs, all fixed with regression tests:
+  - dropping a video could later save an older camera choice;
+  - GRAY camera modes were ranked first but could not be requested;
+  - launcher-started rigs could lose outputs silently;
+  - `--device` on a video config dropped its image size;
+  - seeking miscounted zero-length "repeat frame" chunks.
 
 ## Detector accuracy (synthetic ground truth)
 

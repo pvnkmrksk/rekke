@@ -87,12 +87,37 @@ impl Engine {
         let publisher = match Publisher::new(&config, &path) {
             Ok(p) => p,
             Err(error) if options.degrade_output => {
-                output_error = Some(format!("Outputs off: {error:#}"));
-                let mut quiet = config.clone();
-                quiet.output.enabled = false;
-                quiet.output.zmq_enabled = false;
-                quiet.output.jsonl_path.clear();
-                Publisher::new(&quiet, &path)?
+                // Keep every output that still works; turn off only the failing one(s).
+                type Disable = fn(&mut Config);
+                let attempts: [(&str, Disable); 4] = [
+                    ("ZMQ", |c| c.output.zmq_enabled = false),
+                    ("UDP", |c| c.output.enabled = false),
+                    ("ZMQ and UDP", |c| {
+                        c.output.zmq_enabled = false;
+                        c.output.enabled = false;
+                    }),
+                    ("all outputs", |c| {
+                        c.output.zmq_enabled = false;
+                        c.output.enabled = false;
+                        c.output.jsonl_path.clear();
+                    }),
+                ];
+                let mut fallback = None;
+                for (name, disable) in attempts {
+                    let mut quiet = config.clone();
+                    disable(&mut quiet);
+                    if quiet != config
+                        && let Ok(p) = Publisher::new(&quiet, &path)
+                    {
+                        fallback = Some((name, p));
+                        break;
+                    }
+                }
+                let Some((name, publisher)) = fallback else {
+                    return Err(error);
+                };
+                output_error = Some(format!("{name} off: {error:#}"));
+                publisher
             }
             Err(error) => return Err(error),
         };

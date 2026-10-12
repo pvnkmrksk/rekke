@@ -575,12 +575,8 @@ impl Overrides {
 }
 /// A camera source keeping the config's size and rate where possible.
 pub fn camera_source(config: &Config, device: &str) -> SourceConfig {
-    let (width, height, fps) = match &config.source {
-        SourceConfig::Camera {
-            width, height, fps, ..
-        } => (*width, *height, *fps),
-        _ => (640, 480, 30),
-    };
+    // Markers are in this config's pixel coordinates: keep its image size.
+    let (width, height, fps) = config.source.dimensions();
     SourceConfig::Camera {
         device: device.to_owned(),
         width,

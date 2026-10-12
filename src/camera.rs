@@ -113,7 +113,7 @@ mod native {
         pixel_format::RgbFormat,
         utils::{
             CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType,
-            Resolution,
+            Resolution, frame_formats,
         },
     };
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -231,7 +231,7 @@ mod native {
         let index = CameraIndex::Index(entry.backend_index);
         let mut camera = Camera::new(
             index.clone(),
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),
+            RequestedFormat::with_formats(RequestedFormatType::None, frame_formats()),
         )
         .map_err(|e| anyhow::anyhow!("{e}"))?;
         let formats = camera.compatible_camera_formats().unwrap_or_default();
@@ -244,7 +244,10 @@ mod native {
         }
         let mut errors = Vec::new();
         for format in ranked.into_iter().take(4) {
-            let request = RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format));
+            // All formats, including GRAY (RgbFormat's own list excludes it);
+            // decoding to RGB handles every one of them.
+            let request =
+                RequestedFormat::with_formats(RequestedFormatType::Exact(format), frame_formats());
             let result = camera
                 .set_camera_requset(request)
                 .and_then(|_| camera.open_stream());
