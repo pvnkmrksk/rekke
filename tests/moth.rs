@@ -158,14 +158,24 @@ fn sweep_detector_settings() {
             .map(|(k, f)| antennae(f, &c, k as f32 * 0.067, 2.0, 150))
             .collect()
     };
-    for (inner, outer) in [
-        (20.0, 150.0),
-        (25.0, 150.0),
-        (30.0, 150.0),
-        (25.0, 135.0),
-        (25.0, 165.0),
-    ] {
-        for (start, end) in [(-85.0, 45.0), (-75.0, 45.0), (-75.0, 35.0), (-75.0, 55.0)] {
+    let pairs: Vec<(f32, f32)> = std::env::var("RADII")
+        .unwrap_or("20:150".into())
+        .split(',')
+        .map(|p| {
+            let (a, b) = p.split_once(':').unwrap();
+            (a.parse().unwrap(), b.parse().unwrap())
+        })
+        .collect();
+    let spans: Vec<(f32, f32)> = std::env::var("SPANS")
+        .unwrap_or("-75:55".into())
+        .split(',')
+        .map(|p| {
+            let (a, b) = p.split_once(':').unwrap();
+            (a.parse().unwrap(), b.parse().unwrap())
+        })
+        .collect();
+    for &(inner, outer) in &pairs {
+        for &(start, end) in &spans {
             for method in [Method::WingBlur, Method::Edge] {
                 let mut c = config(method);
                 for s in [&mut c.tracking.left, &mut c.tracking.right] {
@@ -177,6 +187,17 @@ fn sweep_detector_settings() {
                 c.tracking.right.start_deg = 180.0 - end;
                 let a = evaluate(&c, &frames);
                 let tracker = Tracker::new(&c, 640, 480);
+                let stuck = frames
+                    .iter()
+                    .filter(|f| {
+                        let m = tracker.process(f, None, 0).unwrap();
+                        let near = |s: &rekkefly::tracker::PartState, start: f32| {
+                            s.angle_rad
+                                .is_some_and(|a| (a.to_degrees() - start).abs() < 7.0)
+                        };
+                        near(&m.left, start) || near(&m.right, start)
+                    })
+                    .count();
                 let moved = frames
                     .iter()
                     .zip(&painted)
@@ -188,7 +209,7 @@ fn sweep_detector_settings() {
                     })
                     .count();
                 println!(
-                    "{method:?} inner {inner} outer {outer} {start}..{end}: corr {:.2} dev median {:.1} p95 {:.1} >30 {} | antennae moved {moved}/{}",
+                    "{method:?} inner {inner} outer {outer} {start}..{end}: corr {:.2} dev median {:.1} p95 {:.1} >30 {} at start {stuck} | antennae moved {moved}/{}",
                     a.correlation,
                     a.median,
                     a.p95,

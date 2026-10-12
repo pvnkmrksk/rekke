@@ -32,8 +32,8 @@ const INSTRUCTIONS: &str = "Rekkefly tracks the wing angles of tethered insects 
 (the new Kinefly). Typical session: list_cameras and list_configs; start_rig with a \
 config (or a camera device, a video or demo); snapshot to see the frame with the \
 tracking overlay and check the markers; update_config to move them (image pixels; \
-sector angles are image degrees clockwise from +x); rig_status for live angles; \
-record; stop_rig. Offline: track_video summarises a whole video, snapshot with \
+sector angles are image degrees clockwise from +x); rig_status for live angles and \
+measure for statistics over a trial; record; stop_rig. Offline: track_video summarises a whole video, snapshot with \
 `video` shows any frame. Wing angles are 0 perpendicular to the body axis and \
 positive toward the head; left minus right (L−R) is the usual steering signal.";
 
@@ -175,6 +175,7 @@ impl Server {
             "start_rig" => self.start_rig(&args),
             "launch_rigs" => self.launch_rigs(&args),
             "rig_status" => self.rig_status(&args),
+            "measure" => self.measure(&args),
             "stop_rig" => self.stop_rig(&args),
             "record" => self.record(&args),
             "save_background" => self.save_background(&args),
@@ -564,6 +565,102 @@ impl Server {
         }
         let rigs: Vec<Value> = self.rigs.keys().map(|l| self.status(l)).collect();
         Ok(json!({"rigs": rigs}).into())
+    }
+    /// Every frame of a running rig for `seconds`, summarised.
+    fn measure(&self, args: &Map<String, Value>) -> Result<Output> {
+        let (label, rig) = self.rig(args)?;
+        let seconds = number(args, "seconds")?.unwrap_or(5.0);
+        ensure!(
+            seconds > 0.0 && seconds <= 600.0,
+            "seconds must be more than 0 and at most 600"
+        );
+        let receiver = rig.engine.subscribe(65_536)?;
+        let path = text(args, "csv")?;
+        let mut csv = path
+            .as_ref()
+            .map(|p| {
+                std::fs::File::create(p)
+                    .map(std::io::BufWriter::new)
+                    .with_context(|| format!("Create {p}"))
+            })
+            .transpose()?;
+        if let Some(out) = &mut csv {
+            writeln!(
+                out,
+                "sequence,timestamp_ns,left_deg,right_deg,left_minus_right_deg,head_deg,abdomen_deg,processing_us"
+            )?;
+        }
+        let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+        let mut stats: [analyze::Accumulator; 5] = Default::default();
+        let (mut frames, mut skipped, mut previous) = (0u64, 0u64, None::<u64>);
+        let (mut first, mut last) = (None, 0u64);
+        let mut processing = 0.0_f64;
+        let deg = |a: Option<f32>| {
+            a.map(|a| format!("{:.3}", a.to_degrees()))
+                .unwrap_or_default()
+        };
+        while let Some(wait) = deadline.checked_duration_since(Instant::now()) {
+            let Ok(m) = receiver.recv_timeout(wait) else {
+                if rig.engine.is_finished() {
+                    break;
+                }
+                continue;
+            };
+            if let Some(p) = previous {
+                skipped += m.sequence.saturating_sub(p + 1);
+            }
+            previous = Some(m.sequence);
+            first.get_or_insert(m.timestamp_ns);
+            last = m.timestamp_ns;
+            frames += 1;
+            processing += m.processing_us as f64;
+            for (s, v) in stats.iter_mut().zip([
+                m.left.angle_rad,
+                m.right.angle_rad,
+                m.left_minus_right_rad,
+                m.head.angle_rad,
+                m.abdomen.angle_rad,
+            ]) {
+                s.add(v);
+            }
+            if let Some(out) = &mut csv {
+                writeln!(
+                    out,
+                    "{},{},{},{},{},{},{},{:.1}",
+                    m.sequence,
+                    m.timestamp_ns,
+                    deg(m.left.angle_rad),
+                    deg(m.right.angle_rad),
+                    deg(m.left_minus_right_rad),
+                    deg(m.head.angle_rad),
+                    deg(m.abdomen.angle_rad),
+                    m.processing_us
+                )?;
+            }
+        }
+        if let Some(out) = &mut csv {
+            out.flush()?;
+        }
+        ensure!(
+            frames > 0,
+            "No frames arrived in {seconds} s; check rig_status"
+        );
+        let span = last.saturating_sub(first.unwrap_or(last)) as f64 / 1e9;
+        let [left, right, left_minus_right, head, abdomen] = stats.map(|s| s.stats());
+        Ok(json!({
+            "rig": label,
+            "frames": frames,
+            "skipped_frames": skipped,
+            "seconds": (span * 1000.0).round() / 1000.0,
+            "fps": if span > 0.0 { ((frames - 1) as f64 / span * 10.0).round() / 10.0 } else { 0.0 },
+            "processing_us": (processing / frames as f64).round(),
+            "angles_deg": {
+                "left": left, "right": right, "left_minus_right": left_minus_right,
+                "head": head, "abdomen": abdomen,
+            },
+            "csv": path,
+        })
+        .into())
     }
     fn stop_rig(&mut self, args: &Map<String, Value>) -> Result<Output> {
         let labels: Vec<String> = if args.contains_key("rig") {
@@ -994,6 +1091,17 @@ pub fn tools() -> Vec<Value> {
             "Status of one running rig (or all): frames, frame rate, tracking time, the latest wing angles in degrees (left, right, L−R, head, abdomen), recording and outputs.",
             json!({"rig": rig.clone()}),
             &[],
+            true,
+            false,
+        ),
+        tool(
+            "measure",
+            "Measure a rig for a while",
+            "Collect every frame of a running rig for some seconds and summarise each angle in degrees (frames measured, mean, spread, minimum, maximum), for example the mean L−R of a trial. Optionally writes every frame to a CSV. Blocks for `seconds`.",
+            json!({"rig": rig.clone(),
+                   "seconds": number("How long to measure (default 5, at most 600)."),
+                   "csv": string("Also write every frame here (degrees).")}),
+            &["rig"],
             true,
             false,
         ),

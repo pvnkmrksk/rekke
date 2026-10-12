@@ -39,8 +39,9 @@ pub struct AngleStats {
     pub min: Option<f64>,
     pub max: Option<f64>,
 }
+/// Running mean, spread and range of an angle, in degrees.
 #[derive(Default)]
-struct Accumulator {
+pub struct Accumulator {
     n: u64,
     sum: f64,
     squares: f64,
@@ -48,7 +49,8 @@ struct Accumulator {
     max: f64,
 }
 impl Accumulator {
-    fn add(&mut self, value: Option<f32>) {
+    /// Add an angle in radians; `None` (no measurement) is skipped.
+    pub fn add(&mut self, value: Option<f32>) {
         let Some(v) = value.map(|v| v.to_degrees() as f64) else {
             return;
         };
@@ -61,7 +63,7 @@ impl Accumulator {
         self.min = self.min.min(v);
         self.max = self.max.max(v);
     }
-    fn stats(&self) -> AngleStats {
+    pub fn stats(&self) -> AngleStats {
         if self.n == 0 {
             return AngleStats::default();
         }

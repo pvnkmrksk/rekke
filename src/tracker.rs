@@ -30,6 +30,10 @@ pub struct PartState {
     pub coverage: f32,
     #[serde(skip)]
     pub profile: Vec<f32>,
+    /// What the robust detector ranks edges on: the median level across
+    /// radial bands after thin features (legs, antennae) are removed.
+    #[serde(skip)]
+    pub filtered: Vec<f32>,
     #[serde(skip)]
     pub image_angles: Vec<f32>,
 }
@@ -632,6 +636,7 @@ impl Tracker {
                             .then(gradient[*b].abs().total_cmp(&gradient[*a].abs()))
                     });
                     candidates = ranked.into_iter().map(|(i, _)| i).collect();
+                    state.filtered = level.clone();
                 } else {
                     candidates
                         .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));

@@ -64,6 +64,7 @@ pub struct StartOptions {
 }
 enum Command {
     Update(Box<Config>),
+    Subscribe(mpsc::SyncSender<Measurement>),
     SaveBackground,
     LoadBackground,
     DemoBackground,
@@ -224,6 +225,17 @@ impl Engine {
             .send(Command::Update(Box::new(config.clone())))
             .context("Acquisition has stopped")
     }
+    /// Every measurement from now on, in order, for automation that needs
+    /// all frames rather than the preview. Tracking never waits for the
+    /// receiver: if `capacity` measurements queue up, newer ones are
+    /// dropped (visible as gaps in `sequence`).
+    pub fn subscribe(&self, capacity: usize) -> Result<mpsc::Receiver<Measurement>> {
+        let (sender, receiver) = mpsc::sync_channel(capacity.max(1));
+        self.sender
+            .send(Command::Subscribe(sender))
+            .context("Acquisition has stopped")?;
+        Ok(receiver)
+    }
     pub fn save_background(&self) -> Result<()> {
         self.sender
             .send(Command::SaveBackground)
@@ -339,6 +351,7 @@ fn run(
     let mut frames = 0;
     let mut dropped = 0;
     let mut capture_bg = false;
+    let mut subscribers: Vec<mpsc::SyncSender<Measurement>> = Vec::new();
     {
         let mut s = state.lock().unwrap();
         s.message = if s.fallback.is_some() {
@@ -350,7 +363,15 @@ fn run(
     let processing_result: Result<()> = (|| {
         while !stop.load(Ordering::Relaxed) {
             for command in commands.try_iter() {
+                let command = match command {
+                    Command::Subscribe(sender) => {
+                        subscribers.push(sender);
+                        continue;
+                    }
+                    other => other,
+                };
                 let result: Result<()> = match command {
+                    Command::Subscribe(_) => unreachable!("handled above"),
                     Command::Update(next) => {
                         if next.tracking.subtract_background && background.is_none() {
                             Err(anyhow::anyhow!(
@@ -493,6 +514,14 @@ fn run(
             measurement.capture_fps = fps;
             if !publisher.send(&measurement)? {
                 dropped += 1;
+            }
+            if !subscribers.is_empty() {
+                subscribers.retain(|s| {
+                    !matches!(
+                        s.try_send(measurement.clone()),
+                        Err(mpsc::TrySendError::Disconnected(_))
+                    )
+                });
             }
             frames += 1;
             let publish_preview = preview_at.elapsed()

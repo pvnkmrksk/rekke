@@ -109,6 +109,7 @@ pub struct App {
     cameras: Vec<String>,
     camera_query: Option<mpsc::Receiver<Result<Vec<String>, String>>>,
     screenshot: Option<PathBuf>,
+    screenshot_after: Duration,
     screenshot_requested: bool,
     started: Instant,
     autosaver: Option<Autosaver>,
@@ -134,6 +135,8 @@ pub struct Launch {
     pub path: PathBuf,
     pub options: StartOptions,
     pub screenshot: Option<PathBuf>,
+    /// When to take the screenshot after the window opens.
+    pub screenshot_after: Duration,
     /// Panels to open at start: "settings", "plots".
     pub panels: Vec<String>,
     pub shutdown: Arc<AtomicBool>,
@@ -167,6 +170,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
         path,
         options: start_options,
         screenshot,
+        screenshot_after,
         panels,
         shutdown,
     } = launch;
@@ -224,6 +228,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
                 cameras: Vec::new(),
                 camera_query: None,
                 screenshot,
+                screenshot_after,
                 screenshot_requested: false,
                 started: Instant::now(),
             };
@@ -1064,59 +1069,94 @@ impl App {
             });
     }
     fn plots(&self, ui: &mut egui::Ui) {
+        let small = |ui: &egui::Ui, rect: Rect, at: Pos2, text: &str, color: Color32| {
+            ui.painter().text(
+                at.clamp(rect.min, rect.max),
+                egui::Align2::LEFT_TOP,
+                text,
+                egui::FontId::proportional(10.5),
+                color,
+            );
+        };
+        let difference = Color32::from_gray(230);
         ui.columns(2, |columns| {
-            columns[0].label(
-                egui::RichText::new("Wing angle · last 8 seconds")
-                    .size(12.0)
-                    .strong(),
-            );
-            let (rect, _) = columns[0].allocate_exact_size(
-                Vec2::new(columns[0].available_width(), 110.0),
-                egui::Sense::hover(),
-            );
-            plot_grid(columns[0].painter(), rect);
+            let ui = &mut columns[0];
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("Wing angles · last 8 s")
+                        .size(12.0)
+                        .strong(),
+                );
+                for (label, color) in [("L", COLORS[0]), ("R", COLORS[1]), ("L−R", difference)] {
+                    ui.label(egui::RichText::new(label).size(11.0).color(color));
+                }
+            });
+            let (rect, _) = ui
+                .allocate_exact_size(Vec2::new(ui.available_width(), 110.0), egui::Sense::hover());
+            plot_grid(ui.painter(), rect);
+            for (text, frac) in [("+90°", 0.0), ("0°", 0.5), ("−90°", 1.0)] {
+                small(
+                    ui,
+                    rect,
+                    Pos2::new(rect.min.x + 4.0, rect.min.y + frac * (rect.height() - 14.0)),
+                    text,
+                    Color32::from_gray(120),
+                );
+            }
             if let Some(&(time, _, _)) = self.history.back() {
-                for (wing, &color) in COLORS.iter().take(2).enumerate() {
+                let y = |v: f32| {
+                    (rect.center().y - v.to_degrees() / 90.0 * rect.height() / 2.0)
+                        .clamp(rect.min.y, rect.max.y)
+                };
+                let x = |t: f32| rect.max.x - (time - t) / 8.0 * rect.width();
+                type Value = fn(Option<f32>, Option<f32>) -> Option<f32>;
+                let series: [(Color32, f32, Value); 3] = [
+                    (COLORS[0].gamma_multiply(0.6), 1.0, |l, _| l),
+                    (COLORS[1].gamma_multiply(0.6), 1.0, |_, r| r),
+                    (difference, 2.0, |l, r| l.zip(r).map(|(l, r)| l - r)),
+                ];
+                for (color, width, value) in series {
                     let mut segment = Vec::new();
                     for &(t, l, r) in &self.history {
                         if time - t > 8.0 {
                             continue;
                         }
-                        let value = if wing == 0 { l } else { r };
-                        if let Some(value) = value {
-                            segment.push(Pos2::new(
-                                rect.max.x - (time - t) / 8.0 * rect.width(),
-                                rect.center().y - value.to_degrees() / 90.0 * rect.height() / 2.0,
-                            ));
+                        if let Some(v) = value(l, r) {
+                            segment.push(Pos2::new(x(t), y(v)));
                         } else if segment.len() > 1 {
-                            columns[0].painter().add(egui::Shape::line(
+                            ui.painter().add(egui::Shape::line(
                                 std::mem::take(&mut segment),
-                                Stroke::new(1.5_f32, color),
+                                Stroke::new(width, color),
                             ));
                         } else {
                             segment.clear();
                         }
                     }
                     if segment.len() > 1 {
-                        columns[0]
-                            .painter()
-                            .add(egui::Shape::line(segment, Stroke::new(1.5_f32, color)));
+                        ui.painter()
+                            .add(egui::Shape::line(segment, Stroke::new(width, color)));
                     }
                 }
             }
-            columns[1].label(
-                egui::RichText::new(format!(
-                    "{} · angular intensity profile",
-                    NAMES[self.selected]
-                ))
-                .size(12.0)
-                .strong(),
-            );
-            let (rect, _) = columns[1].allocate_exact_size(
-                Vec2::new(columns[1].available_width(), 110.0),
-                egui::Sense::hover(),
-            );
-            plot_grid(columns[1].painter(), rect);
+            let ui = &mut columns[1];
+            let robust = self.config.sectors()[self.selected].method == Method::WingBlur;
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} · angular profile", NAMES[self.selected]))
+                        .size(12.0)
+                        .strong(),
+                );
+                if robust {
+                    ui.label(
+                        egui::RichText::new("thin: raw · bold: legs & antennae removed")
+                            .size(11.0)
+                            .color(Color32::GRAY),
+                    );
+                }
+            });
+            let (rect, _) = ui
+                .allocate_exact_size(Vec2::new(ui.available_width(), 110.0), egui::Sense::hover());
+            plot_grid(ui.painter(), rect);
             if let Some(snapshot) = &self.latest {
                 let state = [
                     &snapshot.measurement.left,
@@ -1124,18 +1164,17 @@ impl App {
                     &snapshot.measurement.head,
                     &snapshot.measurement.abdomen,
                 ][self.selected];
-                if state.profile.len() > 1 {
-                    // Auto-scale: faint wings change the profile by only a few percent.
-                    let lo = state.profile.iter().copied().fold(f32::INFINITY, f32::min);
-                    let hi = state
-                        .profile
-                        .iter()
-                        .copied()
-                        .fold(f32::NEG_INFINITY, f32::max);
+                let color = COLORS[self.selected];
+                // Auto-scale each curve: faint wings change the profile by only a few percent.
+                let curve = |values: &[f32], width: f32, color: Color32| {
+                    if values.len() < 2 {
+                        return;
+                    }
+                    let lo = values.iter().copied().fold(f32::INFINITY, f32::min);
+                    let hi = values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
                     let range = (hi - lo).max(1e-4);
-                    let n = state.profile.len() - 1;
-                    let points = state
-                        .profile
+                    let n = values.len() - 1;
+                    let points = values
                         .iter()
                         .enumerate()
                         .map(|(i, p)| {
@@ -1145,31 +1184,43 @@ impl App {
                             )
                         })
                         .collect();
-                    columns[1].painter().add(egui::Shape::line(
-                        points,
-                        Stroke::new(1.5_f32, COLORS[self.selected]),
-                    ));
-                    // Mark detected edges; the primary edge is brighter.
-                    let s = self.config.sectors()[self.selected];
-                    for &a in &state.image_angles {
-                        let offset = crate::tracker::wrap_angle(a - s.start_deg.to_radians())
-                            .rem_euclid(std::f32::consts::TAU);
-                        let f = offset / s.span_deg.to_radians();
-                        if (0.0..=1.0).contains(&f) {
-                            let x = rect.min.x + f * rect.width();
-                            let primary =
-                                state.image_angle_rad.is_some_and(|p| (p - a).abs() < 1e-5);
-                            columns[1].painter().line_segment(
-                                [Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)],
-                                Stroke::new(
-                                    1.0_f32,
-                                    Color32::from_white_alpha(if primary { 200 } else { 70 }),
-                                ),
+                    ui.painter()
+                        .add(egui::Shape::line(points, Stroke::new(width, color)));
+                };
+                if state.filtered.is_empty() {
+                    curve(&state.profile, 1.5, color);
+                } else {
+                    curve(&state.profile, 1.0, color.gamma_multiply(0.45));
+                    curve(&state.filtered, 2.2, color);
+                }
+                // Mark detected edges; the primary edge is brighter and labelled.
+                let s = self.config.sectors()[self.selected];
+                for (&a, &relative) in state.image_angles.iter().zip(&state.angles_rad) {
+                    let offset = crate::tracker::wrap_angle(a - s.start_deg.to_radians())
+                        .rem_euclid(std::f32::consts::TAU);
+                    let f = offset / s.span_deg.to_radians();
+                    if (0.0..=1.0).contains(&f) {
+                        let x = rect.min.x + f * rect.width();
+                        let primary = state.image_angle_rad.is_some_and(|p| (p - a).abs() < 1e-5);
+                        ui.painter().line_segment(
+                            [Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)],
+                            Stroke::new(
+                                1.0_f32,
+                                Color32::from_white_alpha(if primary { 200 } else { 70 }),
+                            ),
+                        );
+                        if primary {
+                            small(
+                                ui,
+                                rect,
+                                Pos2::new(x + 4.0, rect.min.y + 3.0),
+                                &format!("{:+.1}°", relative.to_degrees()),
+                                Color32::from_gray(230),
                             );
                         }
                     }
                 }
-                columns[1].small(format!(
+                ui.small(format!(
                     "Peak {:.5} · ROI coverage {:.0}%",
                     state.peak_gradient,
                     state.coverage * 100.0
@@ -1345,7 +1396,7 @@ impl eframe::App for App {
         self.dropped_files(ctx);
         if self.screenshot.is_some()
             && !self.screenshot_requested
-            && self.started.elapsed() > Duration::from_secs(2)
+            && self.started.elapsed() > self.screenshot_after
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
             self.screenshot_requested = true;
@@ -1454,6 +1505,7 @@ mod tests {
             cameras: Vec::new(),
             camera_query: None,
             screenshot: None,
+            screenshot_after: Duration::from_secs(2),
             screenshot_requested: false,
             started: Instant::now(),
         }
@@ -1525,6 +1577,7 @@ mod tests {
                 cameras: Vec::new(),
                 camera_query: None,
                 screenshot: None,
+                screenshot_after: Duration::from_secs(2),
                 screenshot_requested: false,
                 started: Instant::now(),
             };

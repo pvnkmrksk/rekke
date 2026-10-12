@@ -98,6 +98,9 @@ struct Args {
     /// Capture the GUI to a PNG after two seconds, then exit.
     #[arg(long)]
     screenshot: Option<PathBuf>,
+    /// Seconds before --screenshot is taken (documentation).
+    #[arg(long, hide = true, default_value_t = 2.0)]
+    screenshot_after: f64,
     /// Open GUI panels at start (settings, plots); used for documentation.
     #[arg(long, hide = true, value_delimiter = ',')]
     show: Vec<String>,
@@ -572,6 +575,7 @@ fn run() -> Result<()> {
             path: config_path,
             options,
             screenshot: args.screenshot,
+            screenshot_after: Duration::from_secs_f64(args.screenshot_after.clamp(0.5, 600.0)),
             panels: args.show.clone(),
             shutdown: stop,
         })

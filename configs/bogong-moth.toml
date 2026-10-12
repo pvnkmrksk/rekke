@@ -1,6 +1,8 @@
 # The Bogong moth example: a real tethered Bogong moth (Agrotis infusa) filmed
-# from above at 30 fps, head down. Its antennae and legs reach into the wing
-# sectors, and each frame catches a different part of the wingbeat.
+# from above at 30 fps, head down. Its antennae and legs reach out beside the
+# wing sectors near the head, and each frame catches a different part of the
+# wingbeat. Viewed from above with the head down, the moth's left wing is on
+# the image's right.
 # Also the template for tracking any video file: change source.path, then drag
 # the dots onto your insect. AVI plays natively; other formats need FFmpeg.
 # The GUI saves marker and detector edits back into this file automatically;
@@ -48,6 +50,12 @@ subtract_background = false
 background_path = "bogong-moth.background.png"
 
 # Wing sectors. Angles are image degrees, clockwise from image-right.
+# Here each hinge sits where that wing's leading edges meet in every frame (the
+# wing base), the inner radius is just past the body, the outer radius ends
+# inside the wing blur, and the sector runs from just clear of the thorax
+# (toward the tail) to past the most forward stroke, short of the legs.
+# primary_edge = "toward_head" reports the leading edge: where the wing gives
+# way to background on the head side.
 # method: "wing_blur" = robust, ignores legs and antennae (default)
 #         "edge"      = classic strongest edge of the averaged profile
 #         "centroid"  = intensity centroid (used for head/abdomen)
@@ -57,8 +65,8 @@ background_path = "bogong-moth.background.png"
 
 [tracking.left]
 enabled = true
-start_deg = -75.0
-span_deg = 130.0
+start_deg = -70.0
+span_deg = 125.0
 inner_radius = 20.0
 outer_radius = 150.0
 method = "wing_blur"
@@ -75,7 +83,7 @@ y = 239.0
 [tracking.right]
 enabled = true
 start_deg = 125.0
-span_deg = 130.0
+span_deg = 125.0
 inner_radius = 20.0
 outer_radius = 150.0
 method = "wing_blur"

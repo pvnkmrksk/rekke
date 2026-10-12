@@ -63,7 +63,7 @@ jobs:
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
-      - name: Native smoke (sample video, rig launcher, recording)
+      - name: Native smoke (sample video, rig launcher, recording, track, MCP)
         shell: bash
         run: |
           exe="${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }}"
@@ -73,6 +73,9 @@ jobs:
           "$exe" --rigs smoke/rigs.toml --demo --headless --frames 30 --record
           ls smoke/recordings/*/video-0000.avi
           "$exe" clip samples/bogong-moth.avi smoke/clip.avi --duration 2 --format png
+          "$exe" track samples/bogong-moth.avi --frames 60 --json | grep '"frames": 60'
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | "$exe" mcp --config-dir smoke | grep -q '"track_video"'
       - name: Package
         run: python scripts/package.py --platform ${{ matrix.platform }} --binary ${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }} --out dist
       - name: Ubuntu install and GUI smoke

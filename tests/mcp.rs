@@ -164,6 +164,18 @@ fn an_agent_can_configure_run_watch_and_stop_a_rig() {
         image["data"].as_str().unwrap().starts_with("/9j/"),
         "a JPEG"
     );
+    // Every frame of a one-second trial, summarised and saved.
+    let csv = dir.path().join("trial.csv");
+    let trial = client.call(
+        "measure",
+        json!({"rig": "agent-run", "seconds": 1.0, "csv": csv}),
+    );
+    let frames = trial["frames"].as_u64().unwrap();
+    assert!(frames >= 20, "{trial}");
+    assert_eq!(trial["skipped_frames"], 0);
+    assert_eq!(trial["angles_deg"]["left_minus_right"]["valid"], frames);
+    let rows = std::fs::read_to_string(&csv).unwrap().lines().count() as u64;
+    assert_eq!(rows, frames + 1, "a header and one row per frame");
     // A live change reaches the running rig at once.
     let applied = client.call(
         "update_config",

@@ -25,10 +25,13 @@ Open Rekkefly from the app menu (right-click for "Start all rigs") or run: rekke
 Configs: ~/.config/rekkefly/configs
 
 FIRST STEPS
-- Rekkefly opens the first camera it can. With no camera, a 30-second sample
-  video plays; connect a camera and click "Retry camera".
+- Rekkefly opens the first camera it can. With no camera, the Bogong moth
+  example (a real tethered moth, 30 s) plays with its own markers; connect a
+  camera and click "Retry camera".
 - Drag the dots onto the insect: magenta = head, cyan = tail, red/green =
-  wing hinges, corner dots = sector angle and radius. Edits save automatically.
+  wing hinges (where each wing turns, at its base), corner dots = sector angle
+  and radius. Inner radius just past the body, outer radius inside the wing
+  blur. Edits save automatically.
 - Angles appear at the lower left and are published on ZMQ port 9871
   (Kinefly format) and over UDP. "Ignore legs" is on by default.
 - Drop a video file on the window to track it. Record with the Record button.
@@ -44,7 +47,13 @@ SEVERAL CAMERAS
 
 PORTABLE FOLDERS
 Extract the whole folder and run ./rekkefly (rekkefly.exe on Windows) or one of the
-launchers (Demo, Sample Video, Camera A/B, All Rigs). Configs are read from the
-folder's configs/ directory.
+launchers (Demo, Bogong Moth Example, Camera A/B, All Rigs). Configs are read
+from the folder's configs/ directory.
+
+AI AGENTS AND SCRIPTS
+- rekkefly mcp is a Model Context Protocol server: add it to Claude Code with
+      claude mcp add rekkefly -- rekkefly mcp
+  (on Mac: /Applications/Rekkefly.app/Contents/MacOS/rekkefly mcp).
+- rekkefly track VIDEO --csv angles.csv tracks a whole video offline.
 
 Full guide: README.md, or https://github.com/pvnkmrksk/rekke
