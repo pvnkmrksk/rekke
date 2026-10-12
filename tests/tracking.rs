@@ -5,6 +5,20 @@ use rekke::{
     tracker::Tracker,
 };
 
+/// The 0.5 defaults these detector tests were written against: the classic
+/// strongest-edge detector and ±45° sectors. Robust-mode tests opt in.
+fn classic() -> Config {
+    let mut c = Config::demo();
+    for (s, start) in [
+        (&mut c.tracking.left, 115.0),
+        (&mut c.tracking.right, -25.0),
+    ] {
+        s.start_deg = start;
+        s.span_deg = 90.0;
+        s.method = Method::Edge;
+    }
+    c
+}
 fn wedge(config: &Config, angle: f32, width: f32, background: u8, wing: u8) -> GrayFrame {
     let (w, h, _) = config.source.dimensions();
     let s = &config.tracking.right;
@@ -26,7 +40,7 @@ fn wedge(config: &Config, angle: f32, width: f32, background: u8, wing: u8) -> G
 }
 #[test]
 fn known_wing_edges_and_relative_angles() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.right.start_deg = -65.0;
     c.tracking.right.span_deg = 130.0;
     c.tracking.right.primary_edge = PrimaryEdge::TowardHead;
@@ -56,7 +70,7 @@ fn known_wing_edges_and_relative_angles() {
 }
 #[test]
 fn background_reference_removes_static_edge() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.subtract_background = true;
     let bg = wedge(&c, -0.3, 0.35, 215, 80);
     let mut raw = bg.clone();
@@ -81,7 +95,7 @@ fn background_reference_removes_static_edge() {
 }
 #[test]
 fn subtraction_requires_matching_reference() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.subtract_background = true;
     let tracker = Tracker::new(&c, 640, 480);
     let raw = wedge(&c, 0.0, 0.2, 220, 40);
@@ -91,7 +105,7 @@ fn subtraction_requires_matching_reference() {
 }
 #[test]
 fn blank_and_disabled_regions_report_no_angle() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.left.enabled = false;
     let frame = GrayFrame::new(640, 480, vec![220; 640 * 480], 0, 0).unwrap();
     let result = Tracker::new(&c, 640, 480).process(&frame, None, 0).unwrap();
@@ -107,7 +121,7 @@ fn blank_and_disabled_regions_report_no_angle() {
 }
 #[test]
 fn centroid_and_wraparound_sector_track_known_direction() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.right.method = Method::Centroid;
     c.tracking.right.start_deg = 300.0;
     c.tracking.right.span_deg = 120.0;
@@ -118,7 +132,7 @@ fn centroid_and_wraparound_sector_track_known_direction() {
 }
 #[test]
 fn clipping_sector_does_not_detect_image_boundary() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.right.hinge = Point { x: 630.0, y: 240.0 };
     let frame = GrayFrame::new(640, 480, vec![120; 640 * 480], 0, 0).unwrap();
     let result = Tracker::new(&c, 640, 480).process(&frame, None, 0).unwrap();
@@ -127,7 +141,7 @@ fn clipping_sector_does_not_detect_image_boundary() {
 }
 #[test]
 fn two_wings_and_body_bonus_work_on_simulated_insect() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.head.enabled = true;
     c.tracking.abdomen.enabled = true;
     let frame = DemoSource::new(640, 480, 120, 8.0).render(0.025, 0);
@@ -140,7 +154,7 @@ fn two_wings_and_body_bonus_work_on_simulated_insect() {
 }
 #[test]
 fn config_roundtrip_and_invalid_geometry_are_checked() {
-    let c = Config::demo();
+    let c = classic();
     let roundtrip: Config = toml::from_str(&toml::to_string_pretty(&c).unwrap()).unwrap();
     assert_eq!(c, roundtrip);
     for change in [0, 1, 2, 3] {
@@ -165,7 +179,7 @@ fn defaults_open_first_camera_and_accept_any_measurable_edge() {
 }
 #[test]
 fn one_level_faint_signal_is_detected_and_live_threshold_can_reject_it() {
-    let mut c = Config::demo();
+    let mut c = classic();
     let frame = wedge(&c, 0.5, 0.3, 230, 229);
     let m = Tracker::new(&c, 640, 480).process(&frame, None, 0).unwrap();
     assert!(m.right.angle_rad.is_some());
@@ -188,7 +202,7 @@ fn one_level_faint_signal_is_detected_and_live_threshold_can_reject_it() {
 #[test]
 fn uniform_signals_never_create_edges_at_zero_threshold() {
     for method in [Method::Edge, Method::WingBlur, Method::Centroid] {
-        let mut c = Config::demo();
+        let mut c = classic();
         c.tracking.right.method = method;
         for level in [0, 1, 120, 220, 255] {
             let frame = GrayFrame::new(640, 480, vec![level; 640 * 480], 0, 0).unwrap();
@@ -199,7 +213,7 @@ fn uniform_signals_never_create_edges_at_zero_threshold() {
 }
 #[test]
 fn strongest_edge_at_sector_boundary_is_not_lost() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.right.start_deg = 0.0;
     c.tracking.right.span_deg = 60.0;
     let frame = wedge(&c, 0.0, 0.012, 230, 150);
@@ -209,7 +223,7 @@ fn strongest_edge_at_sector_boundary_is_not_lost() {
 }
 #[test]
 fn radial_consensus_rejects_a_strong_short_obstruction_over_a_faint_wing() {
-    let mut c = Config::demo();
+    let mut c = classic();
     let mut frame = wedge(&c, 0.7, 0.25, 230, 226);
     let s = &c.tracking.right;
     for y in 0..480 {
@@ -237,7 +251,7 @@ fn radial_consensus_rejects_a_strong_short_obstruction_over_a_faint_wing() {
 }
 #[test]
 fn blurred_faint_wing_tracks_a_gradient_around_its_known_angle() {
-    let mut c = Config::demo();
+    let mut c = classic();
     let mut pixels = vec![230; 640 * 480];
     let s = &c.tracking.right;
     for y in 0..480 {
@@ -288,7 +302,7 @@ fn blurred_faint_wing_tracks_a_gradient_around_its_known_angle() {
 }
 #[test]
 fn radial_consensus_keeps_faint_signal_when_other_angles_are_outside_the_image() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.right.method = Method::WingBlur;
     c.tracking.right.hinge = Point { x: 610.0, y: 240.0 };
     c.tracking.right.start_deg = 0.0;
@@ -320,7 +334,7 @@ fn bright_pulse(frame: &mut GrayFrame, c: &Config, center: f32, width: f32, lo: 
 }
 #[test]
 fn broad_faint_shoulder_survives_bright_thin_pulses_inside_outside_and_near_edge() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.dark_on_light = false;
     c.tracking.right.method = Method::WingBlur;
     c.tracking.right.spike_width_deg = 5.0;
@@ -344,7 +358,7 @@ fn broad_faint_shoulder_survives_bright_thin_pulses_inside_outside_and_near_edge
 }
 #[test]
 fn only_narrow_bright_intrusions_do_not_count_as_a_wing_in_blur_mode() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.dark_on_light = false;
     c.tracking.right.method = Method::WingBlur;
     let mut raw = wedge(&c, 0.2, 0.6, 0, 0);
@@ -369,7 +383,7 @@ fn only_narrow_bright_intrusions_do_not_count_as_a_wing_in_blur_mode() {
 }
 #[test]
 fn broad_shoulder_filter_works_after_saved_background_subtraction_and_live_tuning() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.subtract_background = true;
     c.tracking.right.method = Method::WingBlur;
     let bg = wedge(&c, 0.2, 0.6, 80, 80);
@@ -396,7 +410,7 @@ fn broad_shoulder_filter_works_after_saved_background_subtraction_and_live_tunin
 }
 #[test]
 fn asymmetric_hinge_angle_zero_uses_kinefly_body_axis_projection() {
-    let mut c = Config::demo();
+    let mut c = classic();
     c.tracking.dark_on_light = false;
     c.tracking.right.hinge.y = 275.0;
     let raw = wedge(&c, 0.2, 0.4, 0, 20);

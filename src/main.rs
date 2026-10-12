@@ -1,8 +1,10 @@
 use anyhow::{Context, Result, ensure};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rekke::{
-    config::{Config, SourceConfig},
-    engine::Engine,
+    avi::VideoFormat,
+    config::{Config, Overrides, SourceConfig, camera_source},
+    engine::{Engine, StartOptions},
+    lock::ConfigLock,
     source,
     tracker::Tracker,
 };
@@ -18,15 +20,55 @@ use std::{
 #[derive(Parser)]
 #[command(
     version,
-    about = "Insect wing tracking with independent rigs, ZMQ output and lossless recording"
+    about = "Track insect wings from cameras or video files.",
+    long_about = "Track insect wings from cameras or video files.\n\n\
+        Run without arguments to open the first camera (or a sample video if none is connected).\n\
+        Examples:\n  \
+        rekke                                   open the GUI\n  \
+        rekke recording.avi                     track a video file\n  \
+        rekke --device 1 --label arena-2        second camera, custom label\n  \
+        rekke --rigs rigs.toml                  every rig in a manifest, one window each\n  \
+        rekke --rigs rigs.toml --headless --record\n  \
+        rekke --list-cameras\n  \
+        rekke clip big.avi sample.avi --start 60 --duration 30",
+    args_conflicts_with_subcommands = true
 )]
 struct Args {
+    /// A video file to track (AVI natively; other formats need FFmpeg).
+    #[arg(value_name = "VIDEO", conflicts_with_all = ["rigs", "device"])]
+    input: Option<PathBuf>,
+    /// This instance's configuration (TOML). Edits in the GUI are saved here.
     #[arg(short, long, conflicts_with = "rigs")]
     config: Option<PathBuf>,
-    /// Launch every enabled rig in this manifest, each as an independent process.
-    #[arg(long, num_args = 0..=1, default_missing_value = "auto", conflicts_with_all = ["config", "init", "benchmark", "screenshot", "list_cameras"])]
+    /// Launch every enabled rig in this manifest, each as its own process.
+    #[arg(long, num_args = 0..=1, default_missing_value = "auto", conflicts_with_all = ["init", "benchmark", "screenshot", "list_cameras", "video", "device", "label"])]
     rigs: Option<PathBuf>,
-    /// Record lossless grayscale video to this instance's recording directory.
+    /// Use this camera for this run: auto, a number from --list-cameras, a
+    /// device path or part of the camera name. Not saved to the config.
+    #[arg(long, conflicts_with = "video")]
+    device: Option<String>,
+    /// Track this video file for this run (same as the VIDEO argument).
+    #[arg(long, value_name = "FILE")]
+    video: Option<PathBuf>,
+    /// With a video: process as fast as possible instead of at its frame rate.
+    #[arg(long)]
+    fast: bool,
+    /// With a video: play it in a loop.
+    #[arg(long = "loop")]
+    repeat: bool,
+    /// Window title, instance name and recording prefix for this run.
+    #[arg(long)]
+    label: Option<String>,
+    /// Publish Kinefly-format ZMQ on this TCP port for this run.
+    #[arg(long, value_name = "PORT")]
+    zmq_port: Option<u16>,
+    /// Send full UDP measurements from this local port for this run.
+    #[arg(long, value_name = "PORT")]
+    udp_port: Option<u16>,
+    /// Send full UDP measurements to this IP:port for this run.
+    #[arg(long, value_name = "IP:PORT")]
+    udp_target: Option<String>,
+    /// Record video to this instance's recording directory.
     #[arg(long)]
     record: bool,
     #[arg(long, hide = true)]
@@ -37,14 +79,14 @@ struct Args {
     /// Run acquisition and output without a GUI.
     #[arg(long)]
     headless: bool,
-    /// Stop after this many processed frames (useful for validation/replay).
+    /// Stop after this many processed frames.
     #[arg(long)]
     frames: Option<u64>,
-    /// Enumerate OS camera devices and exit.
+    /// List cameras with the numbers to use for `device`, then exit.
     #[arg(long)]
     list_cameras: bool,
-    /// Override input with the simulated camera, keeping geometry and output.
-    #[arg(long)]
+    /// Use the simulated fly instead of the camera for this run.
+    #[arg(long, conflicts_with_all = ["device", "video"])]
     demo: bool,
     /// Benchmark processing of a fixed synthetic frame; does not acquire a camera.
     #[arg(long)]
@@ -52,16 +94,142 @@ struct Args {
     /// Capture the GUI to a PNG after two seconds, then exit.
     #[arg(long)]
     screenshot: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Option<Tool>,
 }
-fn main() -> Result<()> {
+#[derive(Subcommand)]
+enum Tool {
+    /// Cut part of a video into a new, usually much smaller, AVI.
+    ///
+    /// Reads AVI natively (including Rekke/Wingtrace recordings); other
+    /// formats need FFmpeg. Never overwrites an existing file.
+    Clip {
+        input: PathBuf,
+        output: PathBuf,
+        /// Seconds to skip from the start.
+        #[arg(long, default_value_t = 0.0)]
+        start: f64,
+        /// Seconds to keep (default: until the end).
+        #[arg(long)]
+        duration: Option<f64>,
+        /// mjpeg (small), png (lossless) or raw (lossless, large).
+        #[arg(long, value_enum, default_value_t = FormatArg::Mjpeg)]
+        format: FormatArg,
+        /// MJPEG quality 1–100.
+        #[arg(long, default_value_t = 90)]
+        quality: u8,
+        /// Keep every Nth frame.
+        #[arg(long, default_value_t = 1)]
+        every: u32,
+    },
+    /// Render a synthetic tethered-fly video with known wing angles.
+    #[command(hide = true)]
+    Synth {
+        output: PathBuf,
+        #[arg(long, default_value_t = 30.0)]
+        seconds: f64,
+        #[arg(long, default_value_t = 30)]
+        fps: u32,
+        #[arg(long, default_value_t = 82)]
+        quality: u8,
+        /// Sensor noise, gray levels.
+        #[arg(long, default_value_t = 1.6)]
+        noise: f32,
+    },
+}
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum FormatArg {
+    Mjpeg,
+    Png,
+    Raw,
+}
+impl From<FormatArg> for VideoFormat {
+    fn from(f: FormatArg) -> Self {
+        match f {
+            FormatArg::Mjpeg => Self::Mjpeg,
+            FormatArg::Png => Self::Png,
+            FormatArg::Raw => Self::Raw,
+        }
+    }
+}
+
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("rekke: {error:#}");
+        std::process::exit(1);
+    }
+}
+fn run() -> Result<()> {
     let args = Args::parse();
     ensure!(
         args.frames.is_none_or(|n| n > 0),
         "--frames must be greater than zero"
     );
+    match args.command {
+        Some(Tool::Clip {
+            ref input,
+            ref output,
+            start,
+            duration,
+            format,
+            quality,
+            every,
+        }) => {
+            ensure!((1..=100).contains(&quality), "--quality must be 1–100");
+            let summary = rekke::clip::clip(
+                input,
+                output,
+                &rekke::clip::ClipOptions {
+                    start,
+                    duration,
+                    format: format.into(),
+                    quality,
+                    every,
+                },
+            )?;
+            println!(
+                "Wrote {} frames ({}×{} @ {:.2} fps, {:.1} MB) to {}",
+                summary.frames,
+                summary.width,
+                summary.height,
+                summary.fps,
+                summary.bytes as f64 / 1e6,
+                output.display()
+            );
+            return Ok(());
+        }
+        Some(Tool::Synth {
+            ref output,
+            seconds,
+            fps,
+            quality,
+            noise,
+        }) => {
+            let options = rekke::synth::SceneOptions {
+                noise,
+                ..Default::default()
+            };
+            let summary =
+                rekke::clip::synthesize(output, seconds, fps, 640, 480, quality, options)?;
+            println!(
+                "Wrote {} synthetic frames ({:.1} MB) to {}",
+                summary.frames,
+                summary.bytes as f64 / 1e6,
+                output.display()
+            );
+            return Ok(());
+        }
+        None => {}
+    }
     if args.list_cameras {
-        for camera in source::list_cameras()? {
-            println!("{camera}");
+        let cameras = source::list_cameras()?;
+        if cameras.is_empty() {
+            println!("No cameras found.");
+        } else {
+            println!("Use the number (or the path/name) as source.device:");
+            for camera in cameras {
+                println!("  {camera}");
+            }
         }
         return Ok(());
     }
@@ -86,49 +254,79 @@ fn main() -> Result<()> {
             },
         );
     }
-    let config_path = if let Some(path) = args.config.clone() {
-        path
-    } else if args.init {
-        PathBuf::from("rekke.toml")
-    } else {
-        default_config()?
-    };
     if args.init {
-        ensure!(
-            !config_path.exists(),
-            "Config already exists: {}",
-            config_path.display()
-        );
-        Config::default().save(&config_path)?;
+        let path = args.config.clone().unwrap_or_else(|| "rekke.toml".into());
+        ensure!(!path.exists(), "Config already exists: {}", path.display());
+        Config::default().save(&path)?;
         println!(
             "Created {}. Run rekke --config {}",
-            config_path.display(),
-            config_path.display()
+            path.display(),
+            path.display()
         );
         return Ok(());
     }
-    let mut config = if args.config.is_none() && !config_path.exists() {
+    // One running instance per config. Without --config, a second window
+    // takes the next free rig config instead of the same camera and ports.
+    let (config_path, lock) = if let Some(path) = args.config.clone() {
+        let lock = (!args.benchmark)
+            .then(|| ConfigLock::acquire(&path))
+            .transpose()?;
+        (path, lock)
+    } else if args.benchmark {
+        (default_config()?, None)
+    } else {
+        let (path, lock) = rekke::installation::free_config(&default_config()?)?;
+        (path, Some(lock))
+    };
+    let saved = if args.config.is_none() && !config_path.exists() {
         Config::default()
     } else {
-        Config::load(&config_path).context("Read configuration; use --init to create one")?
+        Config::load(&config_path).with_context(|| format!("Config {}", config_path.display()))?
     };
     let config_path = if config_path.exists() {
         config_path.canonicalize()?
     } else {
         std::env::current_dir()?.join(config_path)
     };
-    if args.demo {
-        let (w, h, fps) = config.source.dimensions();
-        config.source = SourceConfig::Demo {
-            width: w,
-            height: h,
+    let mut overrides = Overrides {
+        label: args.label.clone(),
+        zmq_port: args.zmq_port,
+        udp_port: args.udp_port,
+        udp_target: args.udp_target.clone(),
+        record: args.record,
+        ..Default::default()
+    };
+    if let Some(device) = &args.device {
+        overrides.source = Some(camera_source(&saved, device));
+    }
+    if let Some(video) = args.video.as_ref().or(args.input.as_ref()) {
+        let video = video
+            .canonicalize()
+            .with_context(|| format!("Video {}", video.display()))?;
+        let (width, height, fps) = saved.source.dimensions();
+        overrides.source = Some(SourceConfig::Video {
+            path: video.to_string_lossy().into_owned(),
+            width,
+            height,
             fps,
-            beat_hz: 8.0_f32.min(fps as f32 / 4.0),
-        };
+            repeat: args.repeat,
+            realtime: !args.fast,
+        });
+        overrides.note = Some(format!(
+            "Tracking {}",
+            video.file_name().unwrap_or_default().to_string_lossy()
+        ));
     }
-    if args.record {
-        config.recording.enabled = true;
+    if args.demo {
+        let (width, height, fps) = saved.source.dimensions();
+        overrides.source = Some(SourceConfig::Demo {
+            width,
+            height,
+            fps,
+            beat_hz: 0.8_f32.min(fps as f32 / 4.0),
+        });
     }
+    let config = overrides.apply(&saved);
     config.validate()?;
     if args.benchmark {
         return benchmark(config, args.frames.unwrap_or(2000));
@@ -156,12 +354,14 @@ fn main() -> Result<()> {
         }
         let state = engine.state();
         engine.wait();
+        drop(lock);
         if let Some(error) = state.error {
             anyhow::bail!(error);
         }
         println!(
-            "Processed {} frames; {} local UDP drops; {} ZMQ queue drops; video {}/{} frames written",
+            "Processed {} frames from {}; {} local UDP drops; {} ZMQ queue drops; video {}/{} frames written",
             state.frames,
+            state.source,
             state.udp_dropped,
             state.zmq_dropped,
             state.recording.written,
@@ -174,18 +374,35 @@ fn main() -> Result<()> {
     }
     #[cfg(feature = "gui")]
     {
-        rekke::gui::launch(config, config_path, args.frames, args.screenshot, stop)
-            .map_err(|e| anyhow::anyhow!("GUI: {e}"))
+        let options = StartOptions {
+            limit: args.frames,
+            // A rig launched for an experiment must show its camera error,
+            // never a sample that could be mistaken for live data.
+            fallback: !args.supervised,
+            degrade_output: true,
+        };
+        let result = rekke::gui::launch(rekke::gui::Launch {
+            saved,
+            overrides,
+            path: config_path,
+            options,
+            screenshot: args.screenshot,
+            shutdown: stop,
+        })
+        .map_err(|e| anyhow::anyhow!("GUI: {e}"));
+        drop(lock);
+        result
     }
     #[cfg(not(feature = "gui"))]
     {
+        let _ = (saved, overrides, lock, StartOptions::default());
         anyhow::bail!("Built without GUI support; use --headless")
     }
 }
 fn benchmark(config: Config, count: u64) -> Result<()> {
     ensure!(count > 0, "Benchmark frame count must be positive");
     let (w, h, fps) = config.source.dimensions();
-    let demo = source::DemoSource::new(w, h, fps, 8.0);
+    let demo = source::DemoSource::new(w, h, fps, 1.0);
     let raw = demo.render(0.031, 0);
     let bg = demo.blank_frame();
     let tracker = Tracker::new(&config, w, h);
@@ -209,7 +426,7 @@ fn benchmark(config: Config, count: u64) -> Result<()> {
         count as f64 / seconds
     );
     println!(
-        "Includes grayscale foreground preparation and tracking; excludes acquisition, GUI, serialization and output."
+        "Includes foreground preparation and tracking; excludes acquisition, GUI, serialization and output."
     );
     Ok(())
 }
@@ -251,6 +468,23 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+    #[test]
+    fn cli_parses_videos_overrides_and_tools() {
+        let a = Args::try_parse_from(["rekke", "fly.avi", "--fast", "--label", "arena"]).unwrap();
+        assert_eq!(a.input, Some(PathBuf::from("fly.avi")));
+        assert!(a.fast);
+        assert_eq!(a.label.as_deref(), Some("arena"));
+        let a = Args::try_parse_from(["rekke", "--device", "1", "--zmq-port", "9900"]).unwrap();
+        assert_eq!(a.device.as_deref(), Some("1"));
+        assert_eq!(a.zmq_port, Some(9900));
+        let a = Args::try_parse_from(["rekke", "clip", "in.avi", "out.avi", "--duration", "30"])
+            .unwrap();
+        assert!(matches!(a.command, Some(Tool::Clip { duration: Some(d), .. }) if d == 30.0));
+        assert!(Args::try_parse_from(["rekke", "--rigs", "r.toml", "--device", "1"]).is_err());
+        assert!(Args::try_parse_from(["rekke", "--device", "1", "--video", "a.avi"]).is_err());
+        let a = Args::try_parse_from(["rekke", "--rigs"]).unwrap();
+        assert_eq!(a.rigs, Some(PathBuf::from("auto")));
     }
     #[test]
     fn isolated_mac_bundle_creates_a_writable_camera_config() {

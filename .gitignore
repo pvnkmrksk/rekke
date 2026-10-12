@@ -3,6 +3,8 @@
 *.background.png
 *.jsonl
 *.avi
+!/samples/*.avi
+.*.toml.lock
 /recordings/
 /configs/recordings/
 __pycache__/

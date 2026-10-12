@@ -1,6 +1,13 @@
-# Requires FFmpeg. fps is nominal metadata; frames arrive at stream cadence.
-instance = "rig-a"
+# Track a network stream (RTSP/HTTP/UDP). Requires FFmpeg.
+# The GUI saves marker and detector edits back into this file automatically;
+# these comments are kept. Run it with:  rekke --config <this file>
+# Every setting is explained in the README ("Configuration reference").
+
+# Name shown in the window title, logs and recording folder names.
+instance = "stream"
+# How often the GUI preview refreshes. Tracking always uses every frame.
 preview_fps = 40
+# Save GUI edits 300 ms after you stop dragging (and on close).
 autosave = true
 
 [source]
@@ -10,6 +17,7 @@ width = 640
 height = 480
 fps = 30
 
+# Body axis: drag the magenta head dot and cyan tail dot onto the insect.
 [head]
 x = 320.0
 y = 175.0
@@ -19,20 +27,32 @@ x = 320.0
 y = 330.0
 
 [tracking]
+# false: the wings mirror each other across the head–tail axis while you edit.
 asymmetric = false
+# Angular and radial sampling of each sector (more = finer, slower).
 angle_bins = 240
 radial_samples = 72
+# true: dark insect on a light (backlit) background; false: bright insect on dark.
 dark_on_light = true
+# Track the difference from a saved empty-scene image ("Save BG" in the toolbar).
 subtract_background = false
-background_path = "rig-a.background.png"
+background_path = "stream.background.png"
+
+# Wing sectors. Angles are image degrees, clockwise from image-right.
+# method: "wing_blur" = robust, ignores legs and antennae (default)
+#         "edge"      = classic strongest edge of the averaged profile
+#         "centroid"  = intensity centroid (used for head/abdomen)
+# threshold: 0 reports the strongest edge however faint; raise it to reject noise.
+# spike_width_deg: robust mode ignores dark features narrower than this (legs, antennae).
+# contrast_cap: robust mode limits contrast so opaque legs cannot outweigh a translucent wing.
 
 [tracking.left]
 enabled = true
-start_deg = 115.0
-span_deg = 90.0
+start_deg = 135.0
+span_deg = 130.0
 inner_radius = 55.0
 outer_radius = 185.0
-method = "edge"
+method = "wing_blur"
 threshold = 0.0
 max_edges = 2
 primary_edge = "strongest"
@@ -45,11 +65,11 @@ y = 240.0
 
 [tracking.right]
 enabled = true
-start_deg = -25.0
-span_deg = 90.0
+start_deg = -85.0
+span_deg = 130.0
 inner_radius = 55.0
 outer_radius = 185.0
-method = "edge"
+method = "wing_blur"
 threshold = 0.0
 max_edges = 2
 primary_edge = "strongest"
@@ -95,16 +115,27 @@ x = 320.0
 y = 265.0
 
 [output]
+# Full measurements as JSON over UDP, one datagram per frame.
 enabled = true
-bind = "127.0.0.1:5501"
-target = "127.0.0.1:5601"
+# This rig's own sending port: every rig needs a different one.
+bind = "127.0.0.1:5507"
+# Where your receiver listens (python3 examples/receive_udp.py --port 5607).
+target = "127.0.0.1:5607"
+# Also write every measurement to this JSONL file (relative to this config). Empty = off.
 jsonl_path = ""
-
+# Kinefly-compatible ZMQ publisher. Subscribers connect to tcp://<this computer>:9877.
 zmq_enabled = false
-zmq_bind = "tcp://*:9871"
+zmq_bind = "tcp://*:9877"
 
 [recording]
+# Start recording as soon as this rig starts (the Record button works any time).
 enabled = false
+# Folder for recordings, relative to this config.
 directory = "recordings"
+# "mjpeg" = small (about 10–20× smaller than raw), "png" = lossless, "raw" = lossless and largest.
+format = "mjpeg"
+# MJPEG quality 1–100; 90 is visually lossless for wing tracking.
+quality = 90
+# Frames buffered for the disk writer, and the size of each AVI file.
 queue_frames = 32
 segment_mb = 1024

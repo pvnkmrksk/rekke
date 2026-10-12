@@ -1,3 +1,4 @@
+pub use crate::avi::VideoFormat;
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -40,6 +41,8 @@ pub enum SourceConfig {
         height: u32,
         fps: u32,
     },
+    /// AVI (Y800/GREY, 8/24/32-bit, MJPEG, PNG) plays natively; other
+    /// containers and codecs use FFmpeg if it is installed.
     Video {
         path: String,
         width: u32,
@@ -47,6 +50,9 @@ pub enum SourceConfig {
         fps: u32,
         #[serde(default)]
         repeat: bool,
+        /// Play at the recorded frame rate. False processes as fast as possible.
+        #[serde(default = "default_true")]
+        realtime: bool,
     },
     Network {
         url: String,
@@ -85,8 +91,11 @@ impl SourceConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Method {
+    /// Strongest gradient of the radially averaged profile (classic Kinefly).
     Edge,
-    /// Experimental median gradient across radial bands, with contrast clipping.
+    /// Robust wing edge: contrast clipping, removal of thin angular pulses
+    /// (legs, antennae) and the median gradient across radial bands.
+    #[serde(alias = "robust")]
     WingBlur,
     Centroid,
 }
@@ -118,6 +127,9 @@ pub struct Sector {
     /// Remove angular bright pulses narrower than this before scoring WingBlur edges.
     #[serde(default = "default_spike_width")]
     pub spike_width_deg: f32,
+}
+fn default_true() -> bool {
+    true
 }
 fn default_spike_width() -> f32 {
     5.0
@@ -167,6 +179,10 @@ pub struct RecordingConfig {
     pub directory: String,
     pub queue_frames: usize,
     pub segment_mb: u32,
+    /// "mjpeg" (small, default), "png" (lossless) or "raw" (lossless, largest).
+    pub format: VideoFormat,
+    /// MJPEG quality 1–100. 90 is visually lossless for wing tracking.
+    pub quality: u8,
 }
 impl Default for RecordingConfig {
     fn default() -> Self {
@@ -175,6 +191,8 @@ impl Default for RecordingConfig {
             directory: "recordings".into(),
             queue_frames: 32,
             segment_mb: 1024,
+            format: VideoFormat::Mjpeg,
+            quality: 90,
         }
     }
 }
@@ -229,8 +247,10 @@ impl Default for Config {
                 dark_on_light: true,
                 subtract_background: false,
                 background_path: "rig-a.background.png".into(),
-                left: sector(296.0, 240.0, 115.0, 90.0, 55.0, 185.0, Method::Edge),
-                right: sector(344.0, 240.0, -25.0, 90.0, 55.0, 185.0, Method::Edge),
+                // −45° (toward the tail) to +85° (toward the head) around each
+                // wing, covering a typical leading edge of +30° to +80°.
+                left: sector(296.0, 240.0, 135.0, 130.0, 55.0, 185.0, Method::WingBlur),
+                right: sector(344.0, 240.0, -85.0, 130.0, 55.0, 185.0, Method::WingBlur),
                 head: Sector {
                     enabled: false,
                     ..sector(320.0, 205.0, -125.0, 70.0, 12.0, 62.0, Method::Centroid)
@@ -260,8 +280,8 @@ impl Config {
             source: SourceConfig::Demo {
                 width: 640,
                 height: 480,
-                fps: 120,
-                beat_hz: 8.0,
+                fps: 60,
+                beat_hz: 0.8,
             },
             output: OutputConfig {
                 zmq_enabled: false,
@@ -277,12 +297,23 @@ impl Config {
         config.validate()?;
         Ok(config)
     }
+    /// Validate and atomically write. Comments and layout of an existing
+    /// file are kept; only changed values are replaced.
     pub fn save(&self, path: &Path) -> Result<()> {
         self.validate()?;
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             fs::create_dir_all(parent)?;
         }
-        let contents = toml::to_string_pretty(self)?;
+        let fresh = toml::to_string_pretty(self)?;
+        let contents = fs::read_to_string(path)
+            .ok()
+            .and_then(|old| old.parse::<toml_edit::DocumentMut>().ok())
+            .and_then(|mut document| {
+                let new = fresh.parse::<toml_edit::DocumentMut>().ok()?;
+                merge_table(document.as_table_mut(), new.as_table());
+                Some(document.to_string())
+            })
+            .unwrap_or(fresh);
         atomic_write(path, contents.as_bytes()).with_context(|| format!("Save {}", path.display()))
     }
     pub fn resolve(&self, config_path: &Path, path: &str) -> PathBuf {
@@ -460,7 +491,127 @@ impl Config {
             (16..=1900).contains(&self.recording.segment_mb),
             "Recording segment_mb must be 16–1900"
         );
+        ensure!(
+            (1..=100).contains(&self.recording.quality),
+            "Recording quality must be 1–100"
+        );
         Ok(())
+    }
+}
+/// Settings supplied at launch (command line or rig manifest) that apply to
+/// this run only. The GUI saves the config without them, so a temporary
+/// video, camera or port never overwrites the saved setup.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Overrides {
+    /// Window title, instance name and recording prefix.
+    pub label: Option<String>,
+    pub source: Option<SourceConfig>,
+    pub zmq_port: Option<u16>,
+    pub udp_port: Option<u16>,
+    pub udp_target: Option<String>,
+    pub record: bool,
+    /// Why the source was replaced, shown in the GUI.
+    pub note: Option<String>,
+}
+fn replace_port(address: &str, port: u16) -> String {
+    match address.rsplit_once(':') {
+        Some((host, _)) => format!("{host}:{port}"),
+        None => format!("{address}:{port}"),
+    }
+}
+impl Overrides {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+    pub fn apply(&self, config: &Config) -> Config {
+        let mut c = config.clone();
+        if let Some(label) = &self.label {
+            c.instance = label.clone();
+        }
+        if let Some(source) = &self.source {
+            c.source = source.clone();
+        }
+        if let Some(port) = self.zmq_port {
+            c.output.zmq_enabled = true;
+            c.output.zmq_bind = replace_port(&c.output.zmq_bind, port);
+        }
+        if let Some(port) = self.udp_port {
+            c.output.enabled = true;
+            c.output.bind = replace_port(&c.output.bind, port);
+        }
+        if let Some(target) = &self.udp_target {
+            c.output.enabled = true;
+            c.output.target = target.clone();
+        }
+        if self.record {
+            c.recording.enabled = true;
+        }
+        c
+    }
+    /// The config to save after GUI edits: overridden fields keep the values
+    /// from `saved` (the file), everything else comes from `edited`.
+    pub fn persistable(&self, edited: &Config, saved: &Config) -> Config {
+        let mut c = edited.clone();
+        if self.label.is_some() {
+            c.instance = saved.instance.clone();
+        }
+        if self.source.is_some() {
+            c.source = saved.source.clone();
+        }
+        if self.zmq_port.is_some() {
+            c.output.zmq_enabled = saved.output.zmq_enabled;
+            c.output.zmq_bind = saved.output.zmq_bind.clone();
+        }
+        if self.udp_port.is_some() || self.udp_target.is_some() {
+            c.output.enabled = saved.output.enabled;
+            c.output.bind = saved.output.bind.clone();
+            c.output.target = saved.output.target.clone();
+        }
+        if self.record {
+            c.recording.enabled = saved.recording.enabled;
+        }
+        c
+    }
+}
+/// A camera source keeping the config's size and rate where possible.
+pub fn camera_source(config: &Config, device: &str) -> SourceConfig {
+    let (width, height, fps) = match &config.source {
+        SourceConfig::Camera {
+            width, height, fps, ..
+        } => (*width, *height, *fps),
+        _ => (640, 480, 30),
+    };
+    SourceConfig::Camera {
+        device: device.to_owned(),
+        width,
+        height,
+        fps,
+    }
+}
+/// Update `old` to hold exactly `new`'s values, keeping comments, key order
+/// and formatting wherever a key survives.
+fn merge_table(old: &mut toml_edit::Table, new: &toml_edit::Table) {
+    let stale: Vec<String> = old
+        .iter()
+        .map(|(key, _)| key.to_owned())
+        .filter(|key| !new.contains_key(key))
+        .collect();
+    for key in stale {
+        old.remove(&key);
+    }
+    for (key, item) in new.iter() {
+        match (old.get_mut(key), item) {
+            (Some(toml_edit::Item::Table(o)), toml_edit::Item::Table(n)) => merge_table(o, n),
+            (Some(toml_edit::Item::Value(o)), toml_edit::Item::Value(n)) => {
+                let decor = o.decor().clone();
+                *o = n.clone();
+                *o.decor_mut() = decor;
+            }
+            (Some(slot), _) => *slot = item.clone(),
+            (None, _) => {
+                old.insert(key, item.clone());
+            }
+        }
     }
 }
 /// Replace only after a complete write; a crash cannot leave a half-written TOML/PNG.

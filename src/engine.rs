@@ -1,9 +1,9 @@
 use crate::{
-    config::Config,
+    config::{Config, SourceConfig},
     frame::GrayFrame,
     output::Publisher,
     recording::{Recorder, RecordingState},
-    source::{self, ChildControl, DemoSource},
+    source::{self, AviSource, ChildControl, DemoSource, Opened},
     tracker::{Measurement, Tracker},
 };
 use anyhow::{Context, Result, ensure};
@@ -35,6 +35,24 @@ pub struct State {
     pub udp_dropped: u64,
     pub zmq_dropped: u64,
     pub recording: RecordingState,
+    /// What is being acquired, for example the camera name and mode.
+    pub source: String,
+    /// Why the configured camera was replaced by the sample video.
+    pub fallback: Option<String>,
+    /// Outputs are off because they could not start (GUI only).
+    pub output_error: Option<String>,
+}
+/// How an engine reacts to an unavailable camera or output port.
+#[derive(Clone, Debug, Default)]
+pub struct StartOptions {
+    /// Stop after this many processed frames.
+    pub limit: Option<u64>,
+    /// If the camera cannot open, play the bundled sample video instead
+    /// (or the simulated fly). Interactive use only; never for experiments.
+    pub fallback: bool,
+    /// If an output port is busy, keep tracking with outputs off and report
+    /// it, instead of failing. Interactive use only.
+    pub degrade_output: bool,
 }
 enum Command {
     Update(Box<Config>),
@@ -53,8 +71,31 @@ pub struct Engine {
 }
 impl Engine {
     pub fn start(config: Config, path: PathBuf, limit: Option<u64>) -> Result<Self> {
+        Self::start_with(
+            config,
+            path,
+            StartOptions {
+                limit,
+                ..Default::default()
+            },
+        )
+    }
+    pub fn start_with(config: Config, path: PathBuf, options: StartOptions) -> Result<Self> {
         config.validate()?;
-        let publisher = Publisher::new(&config, &path)?;
+        let limit = options.limit;
+        let mut output_error = None;
+        let publisher = match Publisher::new(&config, &path) {
+            Ok(p) => p,
+            Err(error) if options.degrade_output => {
+                output_error = Some(format!("Outputs off: {error:#}"));
+                let mut quiet = config.clone();
+                quiet.output.enabled = false;
+                quiet.output.zmq_enabled = false;
+                quiet.output.jsonl_path.clear();
+                Publisher::new(&quiet, &path)?
+            }
+            Err(error) => return Err(error),
+        };
         let bg_path = config.resolve(&path, &config.tracking.background_path);
         let background = if bg_path.is_file() {
             Some(GrayFrame::load(&bg_path)?)
@@ -76,8 +117,10 @@ impl Engine {
         let state = Arc::new(Mutex::new(State {
             message: "Opening image source…".into(),
             background_loaded: background.is_some(),
+            output_error,
             ..Default::default()
         }));
+        let fallback = options.fallback;
         let stop = Arc::new(AtomicBool::new(false));
         let child: ChildControl = Arc::new(Mutex::new(None));
         let (sender, receiver) = mpsc::channel();
@@ -98,6 +141,7 @@ impl Engine {
                     flag,
                     process,
                     limit,
+                    fallback,
                 );
                 let mut shared = shared.lock().unwrap();
                 shared.finished = true;
@@ -192,11 +236,43 @@ fn run(
     stop: Arc<AtomicBool>,
     child: ChildControl,
     limit: Option<u64>,
+    fallback: bool,
 ) -> Result<()> {
-    let mut source = source::open(&config, &path, child)?;
     let (w, h, _) = config.source.dimensions();
+    let opened = match source::open(&config, &path, child) {
+        Ok(opened) => opened,
+        Err(error) if fallback && matches!(config.source, SourceConfig::Camera { .. }) => {
+            let reason = format!("{error:#}");
+            eprintln!(
+                "{}: camera unavailable, showing a sample: {reason}",
+                config.instance
+            );
+            let opened = source::sample_video()
+                .and_then(|video| {
+                    AviSource::open(&video, w, h, true, true)
+                        .ok()
+                        .map(|s| Opened {
+                            source: Box::new(s),
+                            description: format!(
+                                "Sample video {}",
+                                video.file_name().unwrap_or_default().to_string_lossy()
+                            ),
+                        })
+                })
+                .unwrap_or_else(|| Opened {
+                    source: Box::new(DemoSource::new(w, h, 60, 0.8)),
+                    description: "Simulated fly".into(),
+                });
+            state.lock().unwrap().fallback = Some(reason);
+            opened
+        }
+        Err(error) => return Err(error),
+    };
+    let mut source = opened.source;
+    let sample = state.lock().unwrap().fallback.is_some();
+    state.lock().unwrap().source = opened.description;
     let mut tracker = Tracker::new(&config, w, h);
-    let mut recorder = if config.recording.enabled {
+    let mut recorder = if config.recording.enabled && !sample {
         Some(Recorder::start(&config, &path)?)
     } else {
         None
@@ -210,7 +286,14 @@ fn run(
     let mut frames = 0;
     let mut dropped = 0;
     let mut capture_bg = false;
-    state.lock().unwrap().message = "Live".into();
+    {
+        let mut s = state.lock().unwrap();
+        s.message = if s.fallback.is_some() {
+            "No camera: showing a sample".into()
+        } else {
+            "Live".into()
+        };
+    }
     let processing_result: Result<()> = (|| {
         while !stop.load(Ordering::Relaxed) {
             for command in commands.try_iter() {
@@ -226,10 +309,16 @@ fn run(
                             Ok(())
                         }
                     }
+                    Command::SaveBackground if sample => Err(anyhow::anyhow!(
+                        "Background capture is off while the sample plays; connect the camera and Restart"
+                    )),
                     Command::SaveBackground => {
                         capture_bg = true;
                         Ok(())
                     }
+                    Command::Record(true) if sample => Err(anyhow::anyhow!(
+                        "Recording is off while the sample plays; connect the camera and Restart"
+                    )),
                     Command::Record(enabled) => {
                         if enabled && recorder.as_ref().is_none_or(|r| !r.accepting()) {
                             if let Some(old) = recorder.take() {
@@ -282,7 +371,9 @@ fn run(
                 s.background_loaded = background.is_some();
                 match result {
                     Ok(()) => {
-                        s.message = "Live".into();
+                        if s.fallback.is_none() {
+                            s.message = "Live".into();
+                        }
                         s.error = None;
                     }
                     Err(e) => s.message = format!("{e:#}"),
