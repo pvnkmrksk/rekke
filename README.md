@@ -1,13 +1,24 @@
-# Rekkefly · ರೆಕ್ಕೆ
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.png">
+  <img src="docs/images/banner-light.png" alt="Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects on Mac, Windows and Linux." width="760">
+</picture>
 
-<img src="assets/rekkefly-256.png" width="112" align="right" alt="Rekkefly icon: an insect wing with its motion-blur stroke envelope">
+[![Latest release](https://img.shields.io/github/v/release/pvnkmrksk/rekke?label=download&color=ff7059)](https://github.com/pvnkmrksk/rekke/releases/latest)
+[![Build and release](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml/badge.svg)](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1f5c66)
+[![Kinefly compatible](https://img.shields.io/badge/ZMQ-Kinefly%20compatible-122329)](#kinefly-compatible-zmq)
+[![License: MIT](https://img.shields.io/badge/license-MIT-5b6b6e)](LICENSE)
 
-**Rekkefly** tracks the wings of a tethered insect from a camera or a video file and streams the angles to your experiment in real time. It is a single native app, inspired by [Kinefly](https://github.com/ssafarik/Kinefly), with no ROS, Python or OpenCV to install. The name is the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86).
+**Rekkefly is the new Kinefly.** It tracks the wings of a tethered insect (*Drosophila* and other flies, bees, moths) from a camera or a video file. It streams the wing angles and **L − R** (left minus right wingbeat amplitude) to your closed-loop experiment in real time. It is one native app: download, double-click and track. There is no ROS, Python, OpenCV or Docker to install.
+
+The name joins **ರೆಕ್ಕೆ** (*rekke*, the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86)) with **fly**, and nods to its roots in [Kinefly](https://github.com/ssafarik/Kinefly).
+
+> **Looking for Kinefly?** Rekkefly does the same job: wing-stroke-amplitude tracking from annular sectors around the wing hinges. It speaks the same ZMQ message as [Kinefly Docker](https://github.com/pvnkmrksk/Kinefly_Docker), so your existing subscribers keep working. See [From Kinefly to Rekkefly](#from-kinefly-to-rekkefly).
 
 ![Rekkefly tracking both wings of a tethered fly](docs/images/main-window.png)
 
 - **Download, double-click, track.** Your camera opens. With no camera, a 30-second sample video plays so you can learn the app.
-- **Ignores legs and antennae.** The default detector follows the wing's motion-blur edge even when a leg or antenna enters the tracking region ([details](#ignore-legs-and-antennae)).
+- **No L − R spikes from legs or antennae.** The default detector follows the broad motion-blur shoulder of the wing. Narrow features (legs, antennae, bristles), even ones as dark as the wing, can't pull the angle, whether they lie inside or outside the blur ([details](#ignore-legs-and-antennae)).
 - **Any number of rigs.** Each rig has its own camera, ports, label and settings. Start them all with one command from one TOML file.
 - **Cameras or video files.** Drop a video on the window, or analyse recordings offline as fast as your computer allows.
 - **Small recordings.** MJPEG by default, about 10× smaller than raw. Lossless PNG and raw are one setting away.
@@ -18,17 +29,18 @@
 ## Contents
 
 1. [Quick start](#quick-start)
-2. [Using the app](#using-the-app)
-3. [Video files](#video-files)
-4. [Several rigs at once](#several-rigs-at-once)
-5. [Ignore legs and antennae](#ignore-legs-and-antennae)
-6. [Recording video](#recording-video)
-7. [Receiving measurements](#receiving-measurements)
-8. [Configuration reference](#configuration-reference)
-9. [Command-line reference](#command-line-reference)
-10. [Troubleshooting](#troubleshooting)
-11. [Installing: details per system](#installing-details-per-system)
-12. [Building, testing and benchmarks](#building-testing-and-benchmarks)
+2. [From Kinefly to Rekkefly](#from-kinefly-to-rekkefly)
+3. [Using the app](#using-the-app)
+4. [Video files](#video-files)
+5. [Several rigs at once](#several-rigs-at-once)
+6. [Ignore legs and antennae](#ignore-legs-and-antennae)
+7. [Recording video](#recording-video)
+8. [Receiving measurements](#receiving-measurements)
+9. [Configuration reference](#configuration-reference)
+10. [Command-line reference](#command-line-reference)
+11. [Troubleshooting](#troubleshooting)
+12. [Installing: details per system](#installing-details-per-system)
+13. [Building, testing and benchmarks](#building-testing-and-benchmarks)
 
 ---
 
@@ -62,6 +74,30 @@ The two wings mirror each other while you edit. Tick **Asymmetric** to edit them
 **4. Read the angles.** The lower-left box shows the left and right wing angles and L−R in radians. The same values are published continuously on **ZMQ port 9871** and over UDP ([how to receive them](#receiving-measurements)).
 
 Every change saves automatically to the rig's config file. Close the window and reopen it: everything is where you left it, including the saved background.
+
+---
+
+## From Kinefly to Rekkefly
+
+Rekkefly stands on the shoulders of two projects.
+
+**[Kinefly](https://github.com/ssafarik/Kinefly)** made real-time wing tracking practical for tethered-flight rigs. It measures the leading edge of each wing's motion-blur stroke envelope inside annular sectors around the wing hinges, together with head and abdomen angles, and publishes the results for closed-loop experiments. Many labs built their arenas around it. Kinefly was written for ROS 1 and Python 2, both now end-of-life, and it is no longer maintained. Installing it today means fighting old operating systems and dependency chains (the [2015 installation notes](https://peterthomasweir.blogspot.com/2015/07/installation-notes-for-kinefly.html) give a flavour), and the old stack can be fragile in long experiments.
+
+**[Kinefly Docker](https://github.com/pvnkmrksk/Kinefly_Docker)** kept Kinefly alive. It packed the original ROS stack into a container and added `ros_zmq_bridge.py`, which re-publishes the wing angles as simple JSON over ZMQ, so any language could listen without ROS. Experiments ran on it; its message format is the contract Rekkefly keeps.
+
+**Rekkefly** is the next step: a from-scratch native app that keeps what worked and drops the stack.
+
+| | Kinefly | Kinefly Docker | Rekkefly |
+| --- | --- | --- | --- |
+| Install | ROS 1 + Python 2 + OpenCV on an old Ubuntu | Docker, X forwarding, camera pass-through | One installer or app (Mac, Windows, Linux) |
+| Cameras | ROS camera drivers | ROS camera drivers in the container | Native USB/webcam, video files, network streams |
+| Output | ROS topics | ZMQ JSON via the bridge | **The same ZMQ JSON**, plus full UDP/JSONL measurements |
+| Legs and antennae in the wing region | Can pull the edge | Can pull the edge | Shoulder detector ignores narrow features |
+| Several rigs | One ROS launch per rig | One container per rig | One TOML, one command, one window per rig |
+| Recording | ROS bags | ROS bags | MJPEG/PNG/raw AVI with exact frame times |
+| Maintained | No | Bridge only | Yes |
+
+Rekkefly keeps Kinefly's geometry and conventions: annular sectors, angles measured from the outward perpendicular to the body axis, positive toward the head. Settings from Kinefly can be re-created by dragging the sectors onto the fly. The ZMQ message has the bridge's exact fields and values: `{"x": left, "y": right, "yaw": left − right, …}`. **Point your existing subscriber at Rekkefly and it keeps working.** Rekkefly was written from scratch after studying Kinefly's documentation and `tracker_edge.py`; it shares no code with it.
 
 ---
 
@@ -215,30 +251,40 @@ Use the number (or the path/name) as source.device:
 
 ## Ignore legs and antennae
 
-![Classic detector pulled onto the legs (left) vs. the robust default (right)](docs/images/legs-classic-vs-robust.png)
+A beating wing photographed over many wingbeats is a faint, translucent **stroke envelope**: a broad *shoulder* of blur tens of degrees wide. Its leading edge is what wingbeat amplitude means. A leg, an antenna, a bristle or the arista is **narrow**. It is localized in angle and usually in radius, and it can sit inside the blur or outside it. It need not be darker than the wing: because it is in focus, its edges are *sharper* than the wing's soft edge. The classic strongest-edge method (Kinefly's approach) therefore jumps onto it, and **L − R spikes**.
 
-*Synthetic fly with its front legs reaching forward. White dashes: the true leading edge. Orange: the detected edge. **Left:** the classic strongest-edge detector locks onto the legs. **Right:** the robust default stays on the wing.*
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/lr-trace-dark.png">
+  <img src="docs/images/lr-trace-light.png" alt="L minus R over 12 seconds: the classic detector spikes to plus or minus 100 degrees and is biased by a line beside one wing; Rekkefly follows the ground truth within 1.2 degrees.">
+</picture>
 
-A beating wing appears as a faint, translucent **stroke envelope**, and its leading edge is what Rekkefly measures. Legs and antennae are thin, opaque and much darker, so the classic strongest-edge method readily picks them instead. The robust detector (TOML `method = "wing_blur"`, the default since 0.6) does three things:
+Rekkefly's default detector (TOML `method = "wing_blur"`) tracks the shoulder rather than the sharpest edge:
 
-1. **Caps contrast** in each of up to 8 radial bands, so an opaque leg cannot outweigh a translucent wing.
-2. **Removes thin features.** It removes angular features narrower than `spike_width_deg` (default 5°) with a morphological opening, and a broad wing envelope passes through unchanged.
-3. **Takes the median across radial bands**, so something that crosses only part of the sector, as a leg or antenna usually does, is out-voted.
+1. **Bands.** The sector is split into up to 8 radial bands, each giving an angular intensity profile. Contrast is capped so an opaque leg cannot outweigh a translucent wing.
+2. **Narrow features are removed.** A morphological opening deletes anything narrower than `spike_width_deg` (default 5°), in each band, however dark it is. A broad shoulder passes through unchanged, edges included.
+3. **Median across bands.** Something present at only some radii, as a leg or antenna usually is, is out-voted.
+4. **The shoulder decides.** Each remaining edge is scored by its steepness *times the blur shoulder behind it*, averaged over a wide window (about 20°). A narrow line has almost no shoulder, even when it touches or crosses the wing, and the wing's true edge has the full width of the envelope. The angle itself still comes from the steepest point of the winning edge, so precision is unchanged.
 
-Measured on synthetic flies with known angles (360 frames per wing, 640×480; `cargo test --release --test intrusions -- --ignored --nocapture`):
+![Classic detector pulled onto the legs (left) vs. Rekkefly (right)](docs/images/legs-classic-vs-robust.png)
 
-| Scene | Classic: frames > 4° off | Robust: frames > 4° off | Robust: median error |
-| --- | --- | --- | --- |
-| Clean flight | 0 / 720 | 0 / 720 | 0.24° |
-| Legs kicking through the wings | 108 / 720 | 0 / 720 | 0.24° |
-| Front legs reaching forward | 720 / 720 | 0 / 720 | 0.21° |
-| Faint wings (6% contrast) with legs | 132 / 720 | 0 / 720 | 0.22° |
-| Legs 2.5× thicker | 720 / 720 | 0 / 720 | 0.21° |
-| Large stroke amplitude and turning | 614 / 720 | 0 / 720 | 0.21° |
+*Front legs reaching forward. White dashes: the true leading edge. Orange: the detected edge. Classic detector (left) vs. Rekkefly (right).*
 
-The same holds at 320×240 and 1280×960, with or without background subtraction, and for legs up to 7× thicker. The robust detector is also about twice as fast as its 0.5 version (see [benchmarks](#building-testing-and-benchmarks)).
+Measured on synthetic flies with exactly known wing angles (`cargo test --release --test intrusions -- --ignored --nocapture`):
 
-**Limits.** These are synthetic scenes. A broad object that covers most of the sector's radial range at the wing's edge can still win, for example the abdomen if the inner radius is too small. Very narrow wing images can be filtered away if `spike_width_deg` is too wide. Check new setups with **Show signal diagnostics**. To go back to the classic detector, untick **Ignore legs** or set `method = "edge"`.
+| Scene, 640×480 (wing measurements) | Classic: off by > 4° | Rekkefly: off by > 4° | Classic: worst L − R error | Rekkefly: worst L − R error |
+| --- | --- | --- | --- | --- |
+| Clean flight | 0 / 720 | 0 | 0.6° | 0.6° |
+| Legs kicking through the wings | 108 / 720 | 0 | 107° | 0.6° |
+| Front legs reaching forward | 720 / 720 | 0 | 116° | 0.6° |
+| Six narrow lines **as dark as the wing blur**, drifting in and out of it | 0 / 600 | 0 | 1.3° | 1.2° |
+| Six narrow lines **twice as dark** | 51 / 600 | 0 | 73° | 1.5° |
+| A line hugging one wing's leading edge, 3° outside | 219 / 600 | 0 | 4.6° (biased in 175 of 300 frames) | 0.8° |
+| A line 4° *inside* the blur | 223 / 600 | 0 | 5.6° | 0.6° |
+| Faint wings (7% contrast), 10 lines and kicking legs | 90 / 600 | 0 | 101° | 1.5° |
+
+The results hold at 320×240 and 1280×960, with or without background subtraction, and for legs up to 7× thicker. The median angle error stays near 0.25°. Fast versions of these checks run as regression tests on every build.
+
+**Limits.** These are synthetic scenes. Features **wider** than `spike_width_deg`, such as a badly out-of-focus leg 10 px wide, can still win now and then. The shoulder rule makes such cases far rarer and smaller (worst error 79° → 34° in the hardest synthetic case), but not impossible. Raise **Ignore features narrower than** in Settings for very thick legs, keeping it narrower than the wing's blur. A feature that touches the leading edge along its whole length is indistinguishable from the wing itself. Check new setups with **Show signal diagnostics**. To return to the classic detector, untick **Ignore legs** or set `method = "edge"`.
 
 ---
 
@@ -354,7 +400,7 @@ Run `rekkefly --help` for the full text.
 
 | Problem | Fix |
 | --- | --- |
-| **Linux: `auto` failed, but `0` worked** (Rekkefly 0.5) | Fixed in 0.6. Rekkefly now skips the metadata-only `/dev/video*` nodes that USB cameras create, and tries cameras in order. Run `rekkefly --list-cameras` to see the numbers |
+| **Linux: `auto` failed, but `0` worked** (Rekke 0.5) | Fixed in 0.6. Rekkefly now skips the metadata-only `/dev/video*` nodes that USB cameras create, and tries cameras in order. Run `rekkefly --list-cameras` to see the numbers |
 | **Linux: "Permission denied" for /dev/video0** | `sudo usermod -aG video $USER`, then log out and back in |
 | **"Cannot open camera … may be in use"** | Close the other program or Rekkefly window that uses that camera, or give this rig another `device` |
 | **"Outputs off: Bind output port …"** | Another program or rig uses that port, for example the old Kinefly bridge. Tracking keeps running in the window. Choose another port in Settings → Instance / output |
@@ -406,7 +452,7 @@ sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev lib
 ```sh
 git clone https://github.com/pvnkmrksk/rekke.git && cd rekkefly
 cargo run --release -- samples/sample-fly.avi --loop    # try it
-cargo test --locked                                     # 87 tests
+cargo test --locked                                     # 89 tests
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --release --locked --no-default-features    # processing only, no GUI/camera
 ```
@@ -424,7 +470,7 @@ cargo build --release --locked --no-default-features    # processing only, no GU
 
 Sampling no longer copies or inverts the whole frame. Each sector is sampled once per frame from precomputed bilinear positions. These positions are rebuilt only when the geometry changes, not when you move a threshold.
 
-**Regenerating assets:** `python3 scripts/icons.py` rasterizes `assets/rekkefly.svg` into every icon format. `rekkefly synth samples/sample-fly.avi --seconds 30 --fps 25 --quality 76 --noise 1.0` re-renders the synthetic sample. `REKKEFLY_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` redraws the detector figure.
+**Regenerating assets:** `python3 scripts/brand.py` draws the icon, README banners, social card and DMG background (needs librsvg, ImageMagick and the Inter and Noto Sans Kannada fonts). Then `python3 scripts/icons.py` rasterizes `assets/rekkefly.svg` into every icon format. `REKKEFLY_TRACE=trace.csv cargo test --release --test intrusions trace -- --ignored` followed by `python3 scripts/trace_chart.py trace.csv docs/images/lr-trace` redraws the L − R chart. `rekkefly synth samples/sample-fly.avi --seconds 30 --fps 25 --quality 76 --noise 1.0` re-renders the synthetic sample. `REKKEFLY_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` redraws the detector figure.
 
 **Releases** are built and tested by GitHub Actions on Ubuntu, Windows and both Mac architectures. A `v*` tag publishes the installers after every platform passes. See [VALIDATION.md](VALIDATION.md) for what has and has not been verified.
 

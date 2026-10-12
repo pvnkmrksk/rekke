@@ -790,3 +790,30 @@ fn trace_left_minus_right() {
     }
     std::fs::write(out, csv).unwrap();
 }
+#[test]
+#[ignore = "prints L−R spike statistics for the leg scenes"]
+fn leg_scenes_left_minus_right() {
+    let clean = SceneOptions {
+        antennae: false,
+        legs: false,
+        leg_kicks: false,
+        ..SceneOptions::default()
+    };
+    let reaching = SceneOptions {
+        reaching_legs: true,
+        ..SceneOptions::default()
+    };
+    for (name, options) in [
+        ("clean", clean),
+        ("kicks", SceneOptions::default()),
+        ("reaching", reaching),
+    ] {
+        for method in [Method::Edge, Method::WingBlur] {
+            let s = spikes(options.clone(), method, 360);
+            println!(
+                "{name:9} {method:?}: wing>4° {} L−R>4° {} L−R worst {:.1}°",
+                s.wrong, s.lr_wrong, s.lr_worst
+            );
+        }
+    }
+}

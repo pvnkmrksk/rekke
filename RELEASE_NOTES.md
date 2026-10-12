@@ -1,6 +1,8 @@
-Rekkefly (ರೆಕ್ಕೆ, Kannada for wing) tracks the wings of tethered insects from cameras or video files. It is a native app and needs no ROS, Python or OpenCV.
+**Rekkefly is the new Kinefly.** The name is ರೆಕ್ಕೆ (*rekke*, Kannada for wing) + fly, rooted in [Kinefly](https://github.com/ssafarik/Kinefly) and [Kinefly Docker](https://github.com/pvnkmrksk/Kinefly_Docker). It tracks the wings of tethered insects from cameras or video files, publishes Kinefly-compatible ZMQ, and needs no ROS, Python, OpenCV or Docker.
 
-## 0.6.0: double-click and track, many rigs, legs ignored
+## 0.6.0: Rekkefly. Double-click and track, many rigs, no L − R spikes from legs
+
+**Renamed: Rekke is now Rekkefly.** The app, command (`rekkefly`), installers and settings folders use the new name. On first launch your Rekke 0.5 settings, markers and backgrounds are copied over automatically; recordings stay where they were. `REKKE_FFMPEG` and `REKKE_SAMPLE` still work. On Windows, Rekkefly installs beside Rekke 0.5; remove the old app in Settings → Apps. On Ubuntu, the `rekkefly` package replaces `rekke`.
 
 **Fixed**
 - **Linux `device = "auto"` failed while `"0"` worked.** USB cameras also create metadata-only `/dev/video*` nodes, and the old code took the first node in the kernel's unsorted directory listing. Rekkefly now lists only nodes that capture video, in number order. `auto` tries each one until a camera opens, so busy cameras are skipped. `"1"` now means the second *camera*: in the common case that is `/dev/video2`. This change also makes the shipped `camera-b.toml` work on Linux.
@@ -9,7 +11,7 @@ Rekkefly (ರೆಕ್ಕೆ, Kannada for wing) tracks the wings of tethered ins
 - With `--rigs … --demo`, the launcher passed conflicting arguments to each rig.
 
 **New**
-- **Ignore legs and antennae:** the robust wing detector is now the default (**Ignore legs** in the toolbar). It is also about 2× faster than before. On synthetic flies with reaching or kicking legs, the classic detector was off by more than 4° in 15–100% of frames; the robust one in none.
+- **No L − R spikes from legs, antennae or narrow lines.** The default detector now follows the wing's broad motion-blur *shoulder*: narrow features are removed, the median is taken across radial bands, and edges are ranked by the shoulder behind them. Legs kicking or reaching into the sectors, antennae, and lines as dark as the wing blur, inside or outside it or hugging one wing's edge, all left L − R within 1.5° of the truth on synthetic flies. The classic detector spiked by up to 116°. Turn it on or off with **Ignore legs** in the toolbar. It is also about 2× faster than its 0.5 version.
 - **Sample video:** with no camera, a 30-second sample plays, with a clear banner and a **Retry camera** button. To use your own footage as the sample, run `rekkefly clip` (see `samples/README.md`).
 - **Video files without FFmpeg:** AVI files (MJPEG, PNG, raw, uncompressed) play natively, including recordings cut short by a crash. Open one by dropping it on the window or with `rekkefly video.avi`. Use `--fast --headless` for offline analysis to JSONL.
 - **`rekkefly clip`** cuts snippets and converts large raw recordings into small MJPEG or lossless PNG files.
@@ -20,7 +22,7 @@ Rekkefly (ರೆಕ್ಕೆ, Kannada for wing) tracks the wings of tethered ins
 - **Resilience:** in the GUI, a busy output port turns off only that output, with a visible notice, instead of stopping tracking. Headless runs and launcher-started rigs still fail loudly.
 - Cameras that offer grayscale modes can now use them (fewer conversions), and switching a video config to a camera keeps its image size.
 - **Configs:** every key in the shipped configs is documented, and saving keeps your comments.
-- **New icon:** a fly wing with its motion-blur stroke envelope.
+- **New look:** a tethered fly with both wings' stroke envelopes and their leading edges in coral, which is exactly what Rekkefly measures.
 - **Diagnostics:** the intensity-profile plot auto-scales and marks the detected edges. The window title shows the label, source and ZMQ port.
 
 **Upgrading.** Existing configs keep working unchanged, including their detector choice. Tick **Ignore legs** to switch an existing rig to the robust detector. On Linux, check numeric `device` values with `rekkefly --list-cameras`. New configs use wider sectors (−45° to +85° around each wing) that contain a typical leading edge.

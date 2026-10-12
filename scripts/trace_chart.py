@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw the README's L−R comparison chart (light and dark) from a trace CSV.
 
-    REKKE_TRACE=trace.csv cargo test --release --test intrusions trace -- --ignored
+    REKKEFLY_TRACE=trace.csv cargo test --release --test intrusions trace -- --ignored
     python3 scripts/trace_chart.py trace.csv docs/images/lr-trace
 Writes <prefix>-light.png and <prefix>-dark.png (needs rsvg-convert).
 """

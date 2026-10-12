@@ -5,7 +5,7 @@ This file records what was checked for this release, how, and what still needs c
 ## Checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
 
 - `cargo fmt --check` passes. `cargo clippy --all-targets -- -D warnings` passes with default features and with `--no-default-features`.
-- **87 tests pass** with default features (82 without GUI/camera); 4 report-only tests are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
+- **89 tests pass** with default features (84 without GUI/camera); 9 report-only tests (comparison tables, figures) are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
 - The Linux `.deb`, tarball and ZIP were built with `scripts/package.py`, and the `.deb` was installed and smoke-tested:
   - `--list-cameras` works with no camera present.
   - The demo config and the bundled sample run headless (`/usr/share/rekkefly/samples/sample-fly.avi --fast`).
@@ -32,6 +32,8 @@ This file records what was checked for this release, how, and what still needs c
 | Faint wings + legs | 132 / 720 | 0 |
 | Legs 2.5× thicker | 720 / 720 | 0 |
 | Large amplitude and turning | 614 / 720 | 0 (worst 1.7°) |
+
+**Narrow lines and L − R.** Six translucent lines per wing drift in and out of the blur. They are as dark as it, half as dark, twice as dark or 4 px wide. In other scenes a line hugs one wing's leading edge 3° outside, or runs 4° inside the blur. None of these produced a frame off by more than 4°, and L − R stayed within 1.8° of the truth. The classic detector biased L − R in up to 75% of frames (edge-hugging line) and spiked it by up to 101°. The robust detector ranks each edge by its steepness times the blur shoulder behind it (about 20°). Out-of-focus lines *wider* than the 5° filter remain a limit: with 12 px lines, 71 of 480 wing measurements were off by more than 4° (worst 34°). Pure gradient ranking gave 158 (worst 79°).
 
 The robust results hold at 320×240 and 1280×960, with and without background subtraction, and for legs up to 7× thicker. Fast regression tests run on every build: the default detector has zero frames off by more than 4° across every leg kick, and the classic detector is shown to fail on the same frames. A separate test checks that per-sample inversion and subtraction give the same profiles and angles as building a full foreground frame.
 

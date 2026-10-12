@@ -1,62 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
- <defs>
-  <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-   <stop offset="0" stop-color="#1e4a5a"/>
-   <stop offset="1" stop-color="#091720"/>
-  </linearGradient>
-  <radialGradient id="glow" cx="0.47" cy="0.5" r="0.5">
-   <stop offset="0" stop-color="#46b3a8" stop-opacity="0.32"/>
-   <stop offset="1" stop-color="#46b3a8" stop-opacity="0"/>
-  </radialGradient>
-  <linearGradient id="membrane" x1="0" y1="0" x2="0" y2="1">
-   <stop offset="0" stop-color="#f4fffc"/>
-   <stop offset="1" stop-color="#93e6d2"/>
-  </linearGradient>
-  <filter id="blur" x="-30%" y="-30%" width="160%" height="160%">
-   <feGaussianBlur stdDeviation="9"/>
-  </filter>
-  <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
-   <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
-   <feOffset dy="14"/>
-   <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
-   <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-  </filter>
-  <path id="wing" d="M0 0C70 -34 250 -78 430 -84C530 -88 575 -40 560 4C545 48 470 84 340 90C210 96 90 64 26 26Z"/>
-  <clipPath id="clip"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
- </defs>
- <g filter="url(#shadow)"><rect x="100" y="100" width="824" height="824" rx="186" fill="url(#tile)"/></g>
- <g clip-path="url(#clip)">
-  <rect x="100" y="100" width="824" height="824" fill="url(#glow)"/>
-  <!-- Stroke envelope: the motion blur of a beating wing -->
-  <g transform="translate(246 700) rotate(-44)" fill="#a6f0de" filter="url(#blur)">
-   <use href="#wing" transform="rotate(5.0)" opacity="0.156"/>
-   <use href="#wing" transform="rotate(10.0)" opacity="0.142"/>
-   <use href="#wing" transform="rotate(15.0)" opacity="0.128"/>
-   <use href="#wing" transform="rotate(20.0)" opacity="0.113"/>
-   <use href="#wing" transform="rotate(25.0)" opacity="0.099"/>
-   <use href="#wing" transform="rotate(30.0)" opacity="0.085"/>
-   <use href="#wing" transform="rotate(35.0)" opacity="0.071"/>
-   <use href="#wing" transform="rotate(40.0)" opacity="0.057"/>
-   <use href="#wing" transform="rotate(45.0)" opacity="0.043"/>
-   <use href="#wing" transform="rotate(50.0)" opacity="0.028"/>
-   <use href="#wing" transform="rotate(55.0)" opacity="0.014"/>
-  </g>
-  <!-- Wing -->
-  <g transform="translate(246 700) rotate(-44)">
-   <use href="#wing" fill="url(#membrane)"/>
-   <g fill="none" stroke="#11444c" stroke-linecap="round" stroke-opacity="0.6">
-    <path d="M8 -5C80 -40 260 -80 430 -84" stroke-width="9"/>
-    <path d="M66 -28C150 -52 250 -70 335 -79" stroke-width="5"/>
-    <path d="M60 -14C220 -30 420 -32 556 -6" stroke-width="5"/>
-    <path d="M56 2C220 12 400 30 520 56" stroke-width="5"/>
-    <path d="M50 16C150 40 240 70 300 90" stroke-width="5"/>
-    <path d="M222 -22L226 10" stroke-width="4.5"/>
-    <path d="M330 22L318 66" stroke-width="4.5"/>
-   </g>
-  </g>
-  <!-- Detected leading edge and hinge -->
-  <path d="M680.5 286.2L745.7 224.2" stroke="#ff917f" stroke-width="16" stroke-linecap="round"/>
-  <circle cx="246" cy="700" r="19" fill="#ff917f"/>
- </g>
- <rect x="102" y="102" width="820" height="820" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.1" stroke-width="4"/>
-</svg>
+<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024' viewBox='0 0 1024 1024'><defs><linearGradient id='itile' x1='0' y1='0' x2='0.6' y2='1'><stop offset='0' stop-color='#f4f8f5'/><stop offset='1' stop-color='#d3e3de'/></linearGradient>
+<clipPath id='iclip'><rect x='100' y='100' width='824' height='824' rx='186.0'/></clipPath>
+<filter id='ishadow' x='-10%' y='-10%' width='120%' height='125%'><feGaussianBlur in='SourceAlpha' stdDeviation='14.0'/><feOffset dy='14.0'/><feComponentTransfer><feFuncA type='linear' slope='0.3'/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in='SourceGraphic'/></feMerge></filter></defs><g filter="url(#ishadow)"><rect x='100' y='100' width='824' height='824' rx='186.0' fill='url(#itile)'/></g><g clip-path='url(#iclip)'><radialGradient id='ienv0' gradientUnits='userSpaceOnUse' cx='472.0' cy='500.0' r='288.0'><stop offset='0' stop-color='#1f5c66' stop-opacity='0.04'/><stop offset='0.55' stop-color='#1f5c66' stop-opacity='0.26'/><stop offset='0.88' stop-color='#1f5c66' stop-opacity='0.30'/><stop offset='1' stop-color='#1f5c66' stop-opacity='0.10'/></radialGradient>
+<path d='M472.0 500.0L319.4 744.2A288.0 288.0 0 0 1 294.7 273.1Z' fill='url(#ienv0)'/>
+<path d='M472.0 500.0L261.4 303.6A288.0 288.0 0 0 1 294.7 273.1Z' fill='url(#ienv0)'/>
+<path d='M472.0 500.0L319.4 744.2A288.0 288.0 0 0 1 283.1 717.4Z' fill='url(#ienv0)'/>
+<radialGradient id='ienv1' gradientUnits='userSpaceOnUse' cx='552.0' cy='500.0' r='288.0'><stop offset='0' stop-color='#1f5c66' stop-opacity='0.04'/><stop offset='0.55' stop-color='#1f5c66' stop-opacity='0.26'/><stop offset='0.88' stop-color='#1f5c66' stop-opacity='0.30'/><stop offset='1' stop-color='#1f5c66' stop-opacity='0.10'/></radialGradient>
+<path d='M552.0 500.0L729.3 273.1A288.0 288.0 0 0 1 704.6 744.2Z' fill='url(#ienv1)'/>
+<path d='M552.0 500.0L740.9 717.4A288.0 288.0 0 0 1 704.6 744.2Z' fill='url(#ienv1)'/>
+<path d='M552.0 500.0L729.3 273.1A288.0 288.0 0 0 1 762.6 303.6Z' fill='url(#ienv1)'/>
+<path d='M398.1 405.4L286.1 262.0' stroke='#ff7059' stroke-width='13.0' stroke-linecap='round'/>
+<path d='M625.9 405.4L737.9 262.0' stroke='#ff7059' stroke-width='13.0' stroke-linecap='round'/>
+<ellipse cx='512.0' cy='628.0' rx='40.0' ry='96.0' fill='#122329'/>
+<path d='M476.0 588.0Q512.0 598.0 548.0 588.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M479.0 614.0Q512.0 624.0 545.0 614.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M482.0 640.0Q512.0 650.0 542.0 640.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<path d='M485.0 666.0Q512.0 676.0 539.0 666.0' stroke='#ffffff' stroke-opacity='0.12' stroke-width='6.0' fill='none'/>
+<ellipse cx='512.0' cy='500.0' rx='54.0' ry='70.0' fill='#122329'/>
+<ellipse cx='512.0' cy='400.0' rx='50.0' ry='38.0' fill='#122329'/>
+<ellipse cx='482.0' cy='396.0' rx='22.0' ry='28.0' fill='#8a2e27' opacity='0.9'/>
+<ellipse cx='542.0' cy='396.0' rx='22.0' ry='28.0' fill='#8a2e27' opacity='0.9'/>
+<circle cx='472.0' cy='500.0' r='11.0' fill='#ff7059'/>
+<circle cx='552.0' cy='500.0' r='11.0' fill='#ff7059'/></g><rect x='102.0' y='102.0' width='820.0' height='820.0' rx='184.0' fill='none' stroke='#000000' stroke-opacity='0.08' stroke-width='4.0'/></svg>
