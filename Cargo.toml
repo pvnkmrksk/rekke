@@ -36,6 +36,17 @@ zune-core = "0.5"
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = { version = "0.14", optional = true }
 
+# Image codecs are far too slow unoptimized; keep them fast in debug builds
+# and tests (the Bogong moth tests decode real MJPEG video).
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.jpeg-encoder]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

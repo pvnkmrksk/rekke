@@ -58,9 +58,9 @@ background_path = "bogong-moth.background.png"
 [tracking.left]
 enabled = true
 start_deg = -75.0
-span_deg = 145.0
-inner_radius = 50.0
-outer_radius = 120.0
+span_deg = 130.0
+inner_radius = 20.0
+outer_radius = 150.0
 method = "wing_blur"
 threshold = 0.0
 max_edges = 2
@@ -69,15 +69,15 @@ contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.left.hinge]
-x = 392.0
-y = 210.0
+x = 371.5
+y = 239.0
 
 [tracking.right]
 enabled = true
-start_deg = 110.0
-span_deg = 145.0
-inner_radius = 50.0
-outer_radius = 120.0
+start_deg = 125.0
+span_deg = 130.0
+inner_radius = 20.0
+outer_radius = 150.0
 method = "wing_blur"
 threshold = 0.0
 max_edges = 2
@@ -86,8 +86,8 @@ contrast_cap = 0.12
 spike_width_deg = 5.0
 
 [tracking.right.hinge]
-x = 314.0
-y = 210.0
+x = 334.5
+y = 239.0
 
 [tracking.head]
 enabled = false

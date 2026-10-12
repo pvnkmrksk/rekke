@@ -599,28 +599,17 @@ fn config_path_for(cwd: &Path, exe: Option<&Path>, app_data: Option<&Path>) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-    struct Scratch(PathBuf);
+    use std::fs;
+    /// A fresh folder per test. Paths from the clock collided on macOS,
+    /// where two tests can start within the same microsecond.
+    struct Scratch(PathBuf, #[allow(dead_code)] tempfile::TempDir);
     impl Scratch {
         fn new() -> Self {
-            let p = std::env::temp_dir().join(format!(
-                "rekkefly-install-{}-{}",
-                std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
-            ));
-            fs::create_dir_all(&p).unwrap();
-            Self(p)
-        }
-    }
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
+            let dir = tempfile::Builder::new()
+                .prefix("rekkefly-install-")
+                .tempdir()
+                .unwrap();
+            Self(dir.path().to_path_buf(), dir)
         }
     }
     #[test]

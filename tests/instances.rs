@@ -46,12 +46,8 @@ fn conflicting_sender_port_fails_with_a_clear_error() {
 }
 #[test]
 fn background_is_saved_and_reloaded_without_global_state() {
-    let temp = std::env::temp_dir().join(format!(
-        "rekkefly-bg-{}-{}",
-        std::process::id(),
-        rekkefly::frame::unix_ns()
-    ));
-    std::fs::create_dir_all(&temp).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let temp = dir.path().to_path_buf();
     let path = temp.join("rig.toml");
     let mut c = Config::demo();
     c.output.enabled = false;
@@ -75,7 +71,6 @@ fn background_is_saved_and_reloaded_without_global_state() {
     assert!(state.error.is_none(), "{:?}", state.error);
     assert!(state.latest.unwrap().measurement.background_subtracted);
     engine.wait();
-    std::fs::remove_dir_all(temp).unwrap();
 }
 #[test]
 fn threshold_and_enable_changes_apply_without_restarting_capture() {
