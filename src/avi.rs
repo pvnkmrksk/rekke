@@ -18,7 +18,7 @@ use std::{
 #[serde(rename_all = "snake_case")]
 pub enum VideoFormat {
     /// Motion JPEG: typically 10–20× smaller than raw, visually lossless at
-    /// quality ≥ 90, plays in VLC/FFmpeg and replays natively in Rekke.
+    /// quality ≥ 90, plays in VLC/FFmpeg and replays natively in Rekkefly.
     #[default]
     Mjpeg,
     /// Lossless PNG frames: bit-exact, usually 1.5–3× smaller than raw.

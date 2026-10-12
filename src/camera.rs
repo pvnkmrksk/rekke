@@ -2,12 +2,12 @@
 //!
 //! `device` in a config may be:
 //! - `"auto"`: the first camera that opens (busy cameras are skipped);
-//! - a number: the camera's position in `rekke --list-cameras` (0 = first);
+//! - a number: the camera's position in `rekkefly --list-cameras` (0 = first);
 //! - a path such as `/dev/video2` or `/dev/v4l/by-id/...` (Linux, stable);
 //! - any other text: a case-insensitive part of the camera name or its ID.
 //!
 //! On Linux each USB camera also creates metadata-only `/dev/video*` nodes and
-//! the kernel's directory order is arbitrary. Rekke lists only nodes that can
+//! the kernel's directory order is arbitrary. Rekkefly lists only nodes that can
 //! capture video, sorted by number, so `auto` and numbers mean real cameras.
 use crate::source::FrameSource;
 use anyhow::{Context, Result, bail, ensure};
@@ -125,7 +125,7 @@ mod native {
         ensure!(
             rx.recv_timeout(std::time::Duration::from_secs(60))
                 .context("Camera permission request timed out")?,
-            "Camera access denied by the OS. Allow Rekke in the system camera privacy settings."
+            "Camera access denied by the OS. Allow Rekkefly in the system camera privacy settings."
         );
         Ok(())
     }
@@ -315,7 +315,7 @@ mod native {
             }
         }
         bail!(
-            "Cannot open camera \"{device}\" (it may be in use by another program or Rekke window). {}",
+            "Cannot open camera \"{device}\" (it may be in use by another program or Rekkefly window). {}",
             failures.join(" | ")
         )
     }

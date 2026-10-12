@@ -1,6 +1,6 @@
 # Track a video file. AVI plays natively; other formats need FFmpeg.
 # The GUI saves marker and detector edits back into this file automatically;
-# these comments are kept. Run it with:  rekke --config <this file>
+# these comments are kept. Run it with:  rekkefly --config <this file>
 # Every setting is explained in the README ("Configuration reference").
 
 # Name shown in the window title, logs and recording folder names.

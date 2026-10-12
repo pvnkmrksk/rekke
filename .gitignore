@@ -9,6 +9,6 @@
 /configs/recordings/
 __pycache__/
 .DS_Store
-/rekke.toml
+/rekkefly.toml
 /wingtrace.toml
 .env

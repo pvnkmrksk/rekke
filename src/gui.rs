@@ -113,7 +113,7 @@ pub struct App {
     shutdown: Arc<AtomicBool>,
 }
 fn app_icon() -> egui::IconData {
-    let icon = image::load_from_memory(include_bytes!("../assets/rekke-64.png"))
+    let icon = image::load_from_memory(include_bytes!("../assets/rekkefly-64.png"))
         .expect("Bundled app icon")
         .into_rgba8();
     egui::IconData {
@@ -155,7 +155,7 @@ fn window_title(config: &Config) -> String {
     } else {
         String::new()
     };
-    format!("Rekke · {} · {source}{port}", config.instance)
+    format!("Rekkefly · {} · {source}{port}", config.instance)
 }
 pub fn launch(launch: Launch) -> eframe::Result<()> {
     let Launch {
@@ -172,7 +172,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(&title)
-            .with_app_id("rekke")
+            .with_app_id("rekkefly")
             .with_inner_size([1000.0, 820.0])
             .with_min_inner_size([720.0, 550.0])
             .with_drag_and_drop(true)
@@ -328,7 +328,7 @@ impl App {
         let mut changed = false;
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new("rekke").strong().size(16.0));
+                ui.label(egui::RichText::new("rekkefly").strong().size(16.0));
                 ui.separator();
                 if ui.add_enabled(self.latest.is_some() && !state.finished, egui::Button::new("Save BG"))
                     .on_hover_text("Save the next camera frame as the background. Capture an empty scene first.").clicked()
@@ -356,7 +356,7 @@ impl App {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.toggle_value(&mut self.show_settings, "Settings");
                     // Rigs started by the launcher are managed as a set; no extra windows there.
-                    if self.options.fallback && ui.button("New window").on_hover_text("Open another Rekke window for the next rig config (its own camera and ports)").clicked() { self.new_window(); }
+                    if self.options.fallback && ui.button("New window").on_hover_text("Open another Rekkefly window for the next rig config (its own camera and ports)").clicked() { self.new_window(); }
                     if ui.add_enabled(self.engine.as_ref().is_some_and(|e| !e.is_finished()), egui::Button::new(if state.recording.active { "Stop REC" } else { "Record" })).on_hover_text(format!("Record the camera image (no overlay) as {} on a dedicated writer. Settings → Video to change.", self.config.recording.format.label())).clicked() {
                         // A run-time toggle: never saved, so the next launch does not start recording by surprise.
                         if let Some(e) = &self.engine && let Err(error) = e.record(!state.recording.active) { self.status = format!("{error:#}"); }
@@ -487,7 +487,7 @@ impl App {
                     }
                     ui.horizontal(|ui| { ui.label("Queue frames"); changed |= ui.add(egui::DragValue::new(&mut self.config.recording.queue_frames).range(1..=256)).changed(); });
                     ui.horizontal(|ui| { ui.label("Segment MiB"); changed |= ui.add(egui::DragValue::new(&mut self.config.recording.segment_mb).range(16..=1900)).changed(); });
-                    ui.small("Grayscale AVI. MJPEG is 10–20× smaller than raw and plays in VLC and in Rekke; PNG and raw are bit-exact. Applies to the next recording. A full queue stops recording visibly.");
+                    ui.small("Grayscale AVI. MJPEG is 10–20× smaller than raw and plays in VLC and in Rekkefly; PNG and raw are bit-exact. Applies to the next recording. A full queue stops recording visibly.");
                     if let Some(path) = &state.recording.directory { ui.small(path.display().to_string()); }
                 });
                 egui::CollapsingHeader::new("Sampling").show(ui, |ui| {

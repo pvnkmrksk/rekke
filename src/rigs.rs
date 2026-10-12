@@ -40,7 +40,7 @@ pub struct RigEntry {
     /// `<label>.toml` beside the manifest; created if missing.
     #[serde(default)]
     pub config: Option<PathBuf>,
-    /// Camera: "auto", a number from `rekke --list-cameras`, a device path
+    /// Camera: "auto", a number from `rekkefly --list-cameras`, a device path
     /// or part of the camera name.
     #[serde(default)]
     pub device: Option<String>,
@@ -185,7 +185,7 @@ impl RigSet {
                 };
                 ensure!(
                     cameras.insert(key),
-                    "Rigs share camera {device}; give each rig its own device (see rekke --list-cameras)"
+                    "Rigs share camera {device}; give each rig its own device (see rekkefly --list-cameras)"
                 );
             }
             ensure!(
@@ -333,7 +333,7 @@ pub fn launch(manifest: &Path, options: LaunchOptions) -> Result<()> {
     for rig in &rigs {
         ensure!(
             ConfigLock::try_acquire(&rig.path)?.is_some(),
-            "{} ({}) is already open in another Rekke window; close it first",
+            "{} ({}) is already open in another Rekkefly window; close it first",
             rig.config.instance,
             rig.path.display()
         );

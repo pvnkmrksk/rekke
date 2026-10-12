@@ -1,8 +1,10 @@
 [package]
-name = "rekke"
+name = "rekkefly"
 version = "0.6.0"
 edition = "2024"
-description = "Configurable, multi-instance insect wing kinematics tracker"
+description = "Rekkefly, the new Kinefly: real-time wing tracking for tethered insects, with Kinefly-compatible ZMQ output"
+keywords = ["kinefly", "insect-flight", "drosophila", "wing-tracking", "neuroscience"]
+categories = ["science", "computer-vision", "multimedia::video"]
 license = "MIT"
 repository = "https://github.com/pvnkmrksk/rekke"
 homepage = "https://github.com/pvnkmrksk/rekke"
@@ -39,7 +41,7 @@ lto = "thin"
 codegen-units = 1
 
 [[bin]]
-name = "rekke"
+name = "rekkefly"
 path = "src/main.rs"
 
 [target.'cfg(windows)'.build-dependencies]

@@ -16,14 +16,15 @@ const SEEDS: [(&str, &str); 6] = [
 ];
 pub fn user_directory() -> Option<PathBuf> {
     if cfg!(target_os = "macos") {
-        std::env::var_os("HOME").map(|p| PathBuf::from(p).join("Library/Application Support/Rekke"))
+        std::env::var_os("HOME")
+            .map(|p| PathBuf::from(p).join("Library/Application Support/Rekkefly"))
     } else if cfg!(target_os = "windows") {
-        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("Rekke"))
+        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("Rekkefly"))
     } else {
         std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
-            .map(|p| p.join("rekke"))
+            .map(|p| p.join("rekkefly"))
     }
 }
 pub fn installed(exe: &Path) -> bool {
@@ -34,14 +35,56 @@ pub fn installed(exe: &Path) -> bool {
         || parent.join("defaults/configs").is_dir()
         || parent
             .parent()
-            .is_some_and(|p| p.join("share/rekke/configs").is_dir())
+            .is_some_and(|p| p.join("share/rekkefly/configs").is_dir())
+}
+/// The per-user folder of the 0.5 "Rekke" releases, beside the new one.
+fn previous_rekke(directory: &Path) -> Option<PathBuf> {
+    let name = directory.file_name()?.to_str()?;
+    let old = match name {
+        "Rekkefly" => "Rekke",
+        "rekkefly" => "rekke",
+        _ => return None,
+    };
+    Some(directory.with_file_name(old))
+}
+/// Copy a 0.5 Rekke configs folder (settings, rig manifest, backgrounds) and
+/// any user sample clip. Recordings stay where they are.
+fn import_rekke(old: &Path, new: &Path) -> Result<()> {
+    for (from, to) in [
+        (old.join("configs"), new.join("configs")),
+        (old.join("samples"), new.join("samples")),
+    ] {
+        let Ok(entries) = std::fs::read_dir(&from) else {
+            continue;
+        };
+        std::fs::create_dir_all(&to)?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let keep = path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|e| e == "toml" || e == "png" || e == "avi");
+            let name = entry.file_name();
+            if keep && !name.to_string_lossy().starts_with('.') && !to.join(&name).exists() {
+                std::fs::copy(&path, to.join(&name))?;
+            }
+        }
+    }
+    Ok(())
 }
 pub fn seed(directory: &Path) -> Result<PathBuf> {
     let config_folder = directory.join("configs");
-    std::fs::create_dir_all(&config_folder)?;
     let primary = config_folder.join("camera-a.toml");
-    // Preserve previous Wingtrace app state during the rename. Videos remain
-    // in their old directory; only the config and referenced baseline migrate.
+    // Rekke 0.5 became Rekkefly: bring its configs and backgrounds along.
+    if !primary.exists()
+        && let Some(old) = previous_rekke(directory)
+        && old.join("configs/camera-a.toml").is_file()
+    {
+        import_rekke(&old, directory).context("Import previous Rekke configuration")?;
+    }
+    std::fs::create_dir_all(&config_folder)?;
+    // Preserve previous Wingtrace app state. Videos remain in their old
+    // directory; only the config and referenced baseline migrate.
     if !primary.exists()
         && let Some(parent) = directory.parent()
     {
@@ -126,7 +169,7 @@ pub fn free_config(preferred: &Path) -> Result<(PathBuf, ConfigLock)> {
         }
     }
     bail!(
-        "{} is already open in another Rekke window. Close it, or start another config with --config.",
+        "{} is already open in another Rekkefly window. Close it, or start another config with --config.",
         preferred.display()
     )
 }
@@ -161,7 +204,7 @@ pub fn select(cwd: &Path, exe: Option<&Path>, data: Option<&Path>) -> Result<Pat
         return seed(data);
     }
     for path in [
-        cwd.join("rekke.toml"),
+        cwd.join("rekkefly.toml"),
         cwd.join("wingtrace.toml"),
         cwd.join("configs/camera-a.toml"),
     ] {
@@ -182,12 +225,46 @@ pub fn select(cwd: &Path, exe: Option<&Path>, data: Option<&Path>) -> Result<Pat
             return seed(data);
         }
     }
-    Ok(cwd.join("rekke.toml"))
+    Ok(cwd.join("rekkefly.toml"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rekke_settings_move_to_rekkefly_without_recordings() {
+        let root = tempfile::tempdir().unwrap();
+        let old = root.path().join("Rekke");
+        let mut c = Config::default();
+        c.head.x = 301.0;
+        c.save(&old.join("configs/camera-a.toml")).unwrap();
+        std::fs::write(old.join("configs/rig-a.background.png"), b"png").unwrap();
+        std::fs::write(old.join("configs/.camera-a.toml.lock"), b"").unwrap();
+        std::fs::create_dir_all(old.join("configs/recordings/session")).unwrap();
+        std::fs::create_dir_all(old.join("samples")).unwrap();
+        std::fs::write(old.join("samples/sample-fly.avi"), b"clip").unwrap();
+        let new = root.path().join("Rekkefly");
+        let path = seed(&new).unwrap();
+        assert_eq!(Config::load(&path).unwrap().head.x, 301.0);
+        assert!(new.join("configs/rig-a.background.png").is_file());
+        assert!(
+            new.join("configs/rigs.toml").is_file(),
+            "missing seeds are added"
+        );
+        assert!(new.join("samples/sample-fly.avi").is_file());
+        assert!(!new.join("configs/recordings").exists());
+        assert!(!new.join("configs/.camera-a.toml.lock").exists());
+        assert!(
+            old.join("configs/camera-a.toml").is_file(),
+            "the old folder is kept"
+        );
+        // Later launches never re-import over the user's new edits.
+        let mut edited = Config::load(&path).unwrap();
+        edited.head.x = 333.0;
+        edited.save(&path).unwrap();
+        seed(&new).unwrap();
+        assert_eq!(Config::load(&path).unwrap().head.x, 333.0);
+    }
     #[test]
     fn seeded_configs_parse_match_the_defaults_and_keep_comments_on_save() {
         let root = tempfile::tempdir().unwrap();
@@ -233,10 +310,10 @@ mod tests {
     #[test]
     fn standard_mac_bundle_uses_writable_state_and_keeps_previous_edits() {
         let root = tempfile::tempdir().unwrap();
-        let data = root.path().join("user/Rekke");
+        let data = root.path().join("user/Rekkefly");
         let exe = root
             .path()
-            .join("Applications/Rekke.app/Contents/MacOS/rekke");
+            .join("Applications/Rekkefly.app/Contents/MacOS/rekkefly");
         let path = select(root.path(), Some(&exe), Some(&data)).unwrap();
         assert_eq!(path, data.join("configs/camera-a.toml"));
         assert!(data.join("configs/rigs.toml").is_file());
@@ -259,7 +336,7 @@ mod tests {
         bg.save(&old.parent().unwrap().join("reference.png"))
             .unwrap();
         std::fs::create_dir(old.parent().unwrap().join("recordings")).unwrap();
-        let path = seed(&root.path().join("Rekke")).unwrap();
+        let path = seed(&root.path().join("Rekkefly")).unwrap();
         let next = Config::load(&path).unwrap();
         assert_eq!(next.tracking.right.outer_radius, 173.0);
         assert_eq!(next.head, c.head);
@@ -267,21 +344,21 @@ mod tests {
             crate::frame::GrayFrame::load(&next.resolve(&path, &next.tracking.background_path))
                 .unwrap();
         assert_eq!(loaded.pixels, bg.pixels);
-        assert!(!root.path().join("Rekke/recordings").exists());
+        assert!(!root.path().join("Rekkefly/recordings").exists());
         assert!(old.exists());
     }
     #[test]
     fn installed_windows_and_linux_use_user_seeds_while_portable_configs_win() {
         let root = tempfile::tempdir().unwrap();
-        let exe = root.path().join("program/rekke.exe");
+        let exe = root.path().join("program/rekkefly.exe");
         std::fs::create_dir_all(exe.parent().unwrap().join("defaults/configs")).unwrap();
         let path = select(root.path(), Some(&exe), Some(&root.path().join("data"))).unwrap();
         assert!(path.starts_with(root.path().join("data")));
         let portable = exe.parent().unwrap().join("configs/camera-a.toml");
         Config::default().save(&portable).unwrap();
         assert_eq!(select(root.path(), Some(&exe), None).unwrap(), portable);
-        let linux = root.path().join("usr/bin/rekke");
-        std::fs::create_dir_all(root.path().join("usr/share/rekke/configs")).unwrap();
+        let linux = root.path().join("usr/bin/rekkefly");
+        std::fs::create_dir_all(root.path().join("usr/share/rekkefly/configs")).unwrap();
         assert!(installed(&linux));
     }
 }

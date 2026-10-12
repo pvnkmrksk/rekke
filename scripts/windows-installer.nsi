@@ -1,25 +1,25 @@
 Unicode true
 !include "MUI2.nsh"
-Name "Rekke"
+Name "Rekkefly"
 OutFile "${OUTPUT}"
-InstallDir "$LOCALAPPDATA\Programs\Rekke"
+InstallDir "$LOCALAPPDATA\Programs\Rekkefly"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-!define MUI_ICON "${PACKAGE}\rekke.ico"
-!define MUI_UNICON "${PACKAGE}\rekke.ico"
+!define MUI_ICON "${PACKAGE}\rekkefly.ico"
+!define MUI_UNICON "${PACKAGE}\rekkefly.ico"
 !define MUI_ABORTWARNING
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_RUN "$INSTDIR\rekke.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\rekkefly.exe"
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
-Section "Rekke"
+Section "Rekkefly"
   SetShellVarContext current
   SetOutPath "$INSTDIR"
-  File "${PACKAGE}\rekke.exe"
-  File "${PACKAGE}\rekke.ico"
+  File "${PACKAGE}\rekkefly.exe"
+  File "${PACKAGE}\rekkefly.ico"
   File "${PACKAGE}\README.md"
   File "${PACKAGE}\INSTALL.txt"
   File "${PACKAGE}\LICENSE"
@@ -32,25 +32,25 @@ Section "Rekke"
   File /r "${PACKAGE}\samples\*.*"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  CreateShortcut "$SMPROGRAMS\Rekke.lnk" "$INSTDIR\rekke.exe" "" "$INSTDIR\rekke.exe" 0
-  CreateShortcut "$DESKTOP\Rekke.lnk" "$INSTDIR\rekke.exe" "" "$INSTDIR\rekke.exe" 0
-  CreateShortcut "$SMPROGRAMS\Rekke - start all rigs.lnk" "$INSTDIR\rekke.exe" "--rigs" "$INSTDIR\rekke.exe" 0
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "DisplayName" "Rekke"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "Publisher" "pvnkmrksk"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "DisplayIcon" "$INSTDIR\rekke.exe"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "URLInfoAbout" "https://github.com/pvnkmrksk/rekke"
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "NoModify" 1
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke" "NoRepair" 1
+  CreateShortcut "$SMPROGRAMS\Rekkefly.lnk" "$INSTDIR\rekkefly.exe" "" "$INSTDIR\rekkefly.exe" 0
+  CreateShortcut "$DESKTOP\Rekkefly.lnk" "$INSTDIR\rekkefly.exe" "" "$INSTDIR\rekkefly.exe" 0
+  CreateShortcut "$SMPROGRAMS\Rekkefly - start all rigs.lnk" "$INSTDIR\rekkefly.exe" "--rigs" "$INSTDIR\rekkefly.exe" 0
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "DisplayName" "Rekkefly"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "Publisher" "pvnkmrksk"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "DisplayIcon" "$INSTDIR\rekkefly.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "URLInfoAbout" "https://github.com/pvnkmrksk/rekke"
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "NoModify" 1
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "NoRepair" 1
 SectionEnd
 Section "Uninstall"
   SetShellVarContext current
-  Delete "$SMPROGRAMS\Rekke.lnk"
-  Delete "$DESKTOP\Rekke.lnk"
-  Delete "$SMPROGRAMS\Rekke - start all rigs.lnk"
-  Delete "$INSTDIR\rekke.exe"
-  Delete "$INSTDIR\rekke.ico"
+  Delete "$SMPROGRAMS\Rekkefly.lnk"
+  Delete "$DESKTOP\Rekkefly.lnk"
+  Delete "$SMPROGRAMS\Rekkefly - start all rigs.lnk"
+  Delete "$INSTDIR\rekkefly.exe"
+  Delete "$INSTDIR\rekkefly.ico"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\INSTALL.txt"
   Delete "$INSTDIR\LICENSE"
@@ -60,6 +60,6 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\samples"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekke"
-  ; User configs/backgrounds/recordings in APPDATA\Rekke are preserved.
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly"
+  ; User configs/backgrounds/recordings in APPDATA\Rekkefly are preserved.
 SectionEnd

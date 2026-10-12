@@ -1,4 +1,4 @@
-use rekke::{
+use rekkefly::{
     config::{Config, Method, Point, PrimaryEdge, SourceConfig},
     frame::GrayFrame,
     source::DemoSource,
@@ -30,7 +30,7 @@ fn wedge(config: &Config, angle: f32, width: f32, background: u8, wing: u8) -> G
                 y: y as f32,
             };
             let r = s.hinge.distance(p);
-            let a = rekke::tracker::wrap_angle(s.hinge.angle_to(p) - angle);
+            let a = rekkefly::tracker::wrap_angle(s.hinge.angle_to(p) - angle);
             if r >= s.inner_radius - 5.0 && r <= s.outer_radius + 5.0 && a.abs() < width / 2.0 {
                 pixels[y as usize * w as usize + x as usize] = wing;
             }
@@ -262,7 +262,7 @@ fn blurred_faint_wing_tracks_a_gradient_around_its_known_angle() {
             };
             let r = s.hinge.distance(p);
             if r >= s.inner_radius - 5.0 && r <= s.outer_radius + 5.0 {
-                let delta = rekke::tracker::wrap_angle(s.hinge.angle_to(p) - 0.55);
+                let delta = rekkefly::tracker::wrap_angle(s.hinge.angle_to(p) - 0.55);
                 let blur = 8.0 * (-0.5 * (delta / 0.12).powi(2)).exp();
                 pixels[y * 640 + x] -= blur.round() as u8;
             }
@@ -325,7 +325,7 @@ fn bright_pulse(frame: &mut GrayFrame, c: &Config, center: f32, width: f32, lo: 
             let r = hinge.distance(p);
             if r >= lo
                 && r <= hi
-                && rekke::tracker::wrap_angle(hinge.angle_to(p) - center).abs() < width * 0.5
+                && rekkefly::tracker::wrap_angle(hinge.angle_to(p) - center).abs() < width * 0.5
             {
                 frame.pixels[y as usize * frame.width as usize + x as usize] = 255;
             }
@@ -421,7 +421,7 @@ fn asymmetric_hinge_angle_zero_uses_kinefly_body_axis_projection() {
 /// foreground frame. Results must match the explicit full-frame version.
 #[test]
 fn per_sample_inversion_and_subtraction_match_full_frame_foregrounds() {
-    let scene = rekke::synth::Scene::new(640, 480, Default::default());
+    let scene = rekkefly::synth::Scene::new(640, 480, Default::default());
     let raw = scene.render(1.3, 4);
     let background = scene.empty();
     for method in [Method::Edge, Method::WingBlur, Method::Centroid] {
@@ -431,7 +431,7 @@ fn per_sample_inversion_and_subtraction_match_full_frame_foregrounds() {
             c.sector_mut(i).enabled = true;
             c.sector_mut(i).method = method;
         }
-        let close = |a: &rekke::tracker::PartState, b: &rekke::tracker::PartState| {
+        let close = |a: &rekkefly::tracker::PartState, b: &rekkefly::tracker::PartState| {
             assert_eq!(a.angle_rad.is_some(), b.angle_rad.is_some(), "{method:?}");
             if let (Some(x), Some(y)) = (a.angle_rad, b.angle_rad) {
                 assert!((x - y).abs() < 1e-4, "{method:?}: {x} vs {y}");

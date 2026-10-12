@@ -44,6 +44,17 @@ pub struct SceneOptions {
     pub reaching_legs: bool,
     /// Leg thickness multiplier (1 = a Drosophila-like 2–3 px at 640×480).
     pub leg_width: f32,
+    /// Narrow translucent lines (bristles, aristae, out-of-focus leg
+    /// segments) per wing, drifting in and out of the stroke envelope.
+    pub lines: usize,
+    /// Darkening of those lines (0–1); equal to `wing_contrast` makes them
+    /// exactly as dark as the wing blur.
+    pub line_contrast: f32,
+    /// Line width in reference pixels.
+    pub line_width: f32,
+    /// A line along the left wing's leading edge, `edge_line_deg` degrees
+    /// ahead of it (negative: inside the blur). `None` disables it.
+    pub edge_line_deg: Option<f32>,
     /// Gaussian sensor noise, gray levels.
     pub noise: f32,
     pub seed: u32,
@@ -62,12 +73,16 @@ impl Default for SceneOptions {
             leg_kicks: true,
             reaching_legs: false,
             leg_width: 1.0,
+            lines: 0,
+            line_contrast: 0.14,
+            line_width: 2.0,
+            edge_line_deg: None,
             noise: 1.6,
             seed: 7,
         }
     }
 }
-/// Ground truth for one instant, in Rekke's angle conventions (radians).
+/// Ground truth for one instant, in Rekkefly's angle conventions (radians).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Truth {
     /// Leading edge, relative to the outward perpendicular, positive toward head.
@@ -385,6 +400,7 @@ impl Scene {
                 }
             }
         }
+        self.lines(&mut light, t, &truth);
         let mut pixels = Vec::with_capacity(light.len());
         let frame_seed = hash(sequence as u32 ^ o.seed.wrapping_mul(0x9e37_79b9));
         let offset = (frame_seed as usize) & (self.noise.len() - 1);
@@ -401,6 +417,65 @@ impl Scene {
             pixels,
             timestamp_ns: crate::frame::unix_ns(),
             sequence,
+        }
+    }
+    /// Translucent narrow lines around each wing hinge, in relative angles.
+    fn lines(&self, light: &mut [f32], t: f32, truth: &Truth) {
+        let o = &self.options;
+        for (wing, &hinge) in HINGES.iter().enumerate() {
+            // Image angle of a relative wing angle (head is up in the scene).
+            let image = |relative_deg: f32| {
+                let origin = if wing == 0 { PI } else { 0.0 };
+                let sense = if wing == 0 { 1.0 } else { -1.0 };
+                origin + sense * relative_deg.to_radians()
+            };
+            let mut draw = |relative_deg: f32, r0: f32, r1: f32, slant: f32| {
+                let a = hinge.at(r0, image(relative_deg));
+                let b = hinge.at(r1, image(relative_deg + slant));
+                self.veil(light, a, b, o.line_width, o.line_contrast);
+            };
+            for k in 0..o.lines {
+                let h = |n: u32| {
+                    hash(o.seed ^ (wing as u32 * 977 + k as u32 * 131 + n)) as f32 / u32::MAX as f32
+                };
+                let base = -40.0 + 135.0 * h(1);
+                let swing = 10.0 + 25.0 * h(2);
+                let speed = 0.15 + 0.5 * h(3);
+                let angle = base + swing * (TAU * speed * t + TAU * h(4)).sin();
+                let r0 = 45.0 + 70.0 * h(5);
+                let r1 = (r0 + 40.0 + 120.0 * h(6)).min(200.0);
+                draw(angle, r0, r1, -12.0 + 24.0 * h(7));
+            }
+            // One-sided, as a real leg would be: it shows up in L−R.
+            if wing == 0
+                && let Some(offset) = o.edge_line_deg
+            {
+                let front = truth.front[wing].to_degrees();
+                draw(front + offset, 50.0, 190.0, 0.0);
+            }
+        }
+    }
+    /// A translucent antialiased line: darkens by `opacity` where it covers.
+    fn veil(&self, light: &mut [f32], a: Point, b: Point, width: f32, opacity: f32) {
+        let a = self.map(a);
+        let b = self.map(b);
+        let half = 0.5 * width * self.sx.max(self.sy);
+        let x0 = (a.x.min(b.x) - half - 1.0).floor().max(0.0) as u32;
+        let x1 = ((a.x.max(b.x) + half + 1.0).ceil().max(0.0) as u32).min(self.width - 1);
+        let y0 = (a.y.min(b.y) - half - 1.0).floor().max(0.0) as u32;
+        let y1 = ((a.y.max(b.y) + half + 1.0).ceil().max(0.0) as u32).min(self.height - 1);
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        let length = (dx * dx + dy * dy).max(1e-6);
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                let (px, py) = (x as f32 - a.x, y as f32 - a.y);
+                let t = ((px * dx + py * dy) / length).clamp(0.0, 1.0);
+                let distance = (px - t * dx).hypot(py - t * dy);
+                let cover = (half - distance + 0.5).clamp(0.0, 1.0);
+                if cover > 0.0 {
+                    light[y as usize * self.width as usize + x as usize] *= 1.0 - opacity * cover;
+                }
+            }
         }
     }
     /// An antialiased opaque capsule from `a` to `b` (reference coordinates).

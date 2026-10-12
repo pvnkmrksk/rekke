@@ -15,17 +15,17 @@ jobs:
         include:
           - os: ubuntu-22.04
             platform: linux-x64
-            binary: rekke
+            binary: rekkefly
           - os: windows-2022
             platform: windows-x64
-            binary: rekke.exe
+            binary: rekkefly.exe
             release_dir: target/x86_64-pc-windows-msvc/release
           - os: macos-15
             platform: macos-arm64
-            binary: rekke
+            binary: rekkefly
           - os: macos-15-intel
             platform: macos-x64
-            binary: rekke
+            binary: rekkefly
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -78,13 +78,13 @@ jobs:
       - name: Ubuntu install and GUI smoke
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y ./dist/rekke_*_amd64.deb
-          rekke --version
-          rekke --config /usr/share/rekke/configs/demo.toml --headless --frames 10
-          rekke /usr/share/rekke/samples/sample-fly.avi --headless --fast --frames 50
-          xvfb-run -a rekke --config /usr/share/rekke/configs/demo.toml --screenshot dist/preview-linux.png
+          sudo apt-get install -y ./dist/rekkefly_*_amd64.deb
+          rekkefly --version
+          rekkefly --config /usr/share/rekkefly/configs/demo.toml --headless --frames 10
+          rekkefly /usr/share/rekkefly/samples/sample-fly.avi --headless --fast --frames 50
+          xvfb-run -a rekkefly --config /usr/share/rekkefly/configs/demo.toml --screenshot dist/preview-linux.png
           # No camera on CI: a plain launch must fall back to the bundled sample.
-          mkdir -p empty && cd empty && xvfb-run -a rekke --screenshot ../dist/preview-no-camera.png
+          mkdir -p empty && cd empty && xvfb-run -a rekkefly --screenshot ../dist/preview-no-camera.png
       - name: Windows installer and icon smoke
         if: runner.os == 'Windows'
         shell: pwsh
@@ -92,11 +92,11 @@ jobs:
           $setup = (Get-ChildItem dist/*setup.exe).FullName
           $install = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw 'Installer failed' }
-          $app = "$env:LOCALAPPDATA\Programs\Rekke\rekke.exe"
+          $app = "$env:LOCALAPPDATA\Programs\Rekkefly\rekkefly.exe"
           & $app --version
           & $app --config configs/demo.toml --headless --frames 10
           if ($LASTEXITCODE -ne 0) { throw 'Installed executable failed' }
-          & $app "$env:LOCALAPPDATA\Programs\Rekke\samples\sample-fly.avi" --headless --fast --frames 50
+          & $app "$env:LOCALAPPDATA\Programs\Rekkefly\samples\sample-fly.avi" --headless --fast --frames 50
           if ($LASTEXITCODE -ne 0) { throw 'Installed sample video failed' }
           Add-Type -AssemblyName System.Drawing
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($app)
@@ -104,7 +104,7 @@ jobs:
           $icon.Dispose()
       - uses: actions/upload-artifact@v4
         with:
-          name: Rekke-${{ matrix.platform }}
+          name: Rekkefly-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
   release:
@@ -126,4 +126,4 @@ jobs:
           cd dist
           sha256sum *.zip *.dmg *.deb *.tar.gz *setup.exe > SHA256SUMS.txt
           cd ..
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.dmg dist/*.deb dist/*.tar.gz dist/*setup.exe dist/SHA256SUMS.txt --verify-tag --title "Rekke ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md --latest
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.dmg dist/*.deb dist/*.tar.gz dist/*setup.exe dist/SHA256SUMS.txt --verify-tag --title "Rekkefly ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md --latest

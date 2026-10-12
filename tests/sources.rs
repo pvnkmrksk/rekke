@@ -1,6 +1,6 @@
 //! Video playback, the no-camera fallback, degraded outputs and run-only
 //! overrides: the behaviours that keep a double-clicked app working.
-use rekke::{
+use rekkefly::{
     avi::{AviWriter, VideoFormat},
     config::{Config, Overrides, SourceConfig, camera_source},
     engine::{Engine, StartOptions},
@@ -21,7 +21,10 @@ fn write_video(path: &std::path::Path, width: u32, height: u32, frames: u8, fps:
     }
     writer.finish().unwrap();
 }
-fn wait(engine: &Engine, until: impl Fn(&rekke::engine::State) -> bool) -> rekke::engine::State {
+fn wait(
+    engine: &Engine,
+    until: impl Fn(&rekkefly::engine::State) -> bool,
+) -> rekkefly::engine::State {
     let start = Instant::now();
     loop {
         let state = engine.state();
@@ -67,7 +70,7 @@ fn video_plays_fast_or_paced_loops_and_fits_any_size_without_distortion() {
 fn engine_tracks_a_native_video_and_stops_at_its_end() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("fly.avi");
-    rekke::clip::synthesize(&path, 1.0, 20, 640, 480, 85, Default::default()).unwrap();
+    rekkefly::clip::synthesize(&path, 1.0, 20, 640, 480, 85, Default::default()).unwrap();
     let mut config = Config::default();
     config.output.enabled = false;
     config.output.zmq_enabled = false;
@@ -94,7 +97,7 @@ fn missing_camera_falls_back_to_a_sample_only_when_allowed() {
     config.output.zmq_enabled = false;
     // A missing device path fails without asking the OS for camera access,
     // so this test never waits on a permission prompt on CI.
-    config.source = camera_source(&config, "/nonexistent/rekke-test-camera");
+    config.source = camera_source(&config, "/nonexistent/rekkefly-test-camera");
     let path = PathBuf::from("unused-fallback.toml");
     // Experiments (headless, rigs) must fail loudly instead.
     let strict = Engine::start(config.clone(), path.clone(), Some(3)).unwrap();

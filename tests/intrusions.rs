@@ -1,6 +1,6 @@
 //! Detector accuracy on synthetic flies with known leading-edge angles,
 //! including antennae and legs that intrude into the wing sectors.
-use rekke::{
+use rekkefly::{
     config::{Config, Method, PrimaryEdge},
     synth::{Scene, SceneOptions},
     tracker::Tracker,
@@ -54,7 +54,7 @@ fn score_at(
         s.inner_radius *= scale;
         s.outer_radius *= scale;
     }
-    if let rekke::config::SourceConfig::Demo {
+    if let rekkefly::config::SourceConfig::Demo {
         width: w,
         height: h,
         ..
@@ -301,11 +301,11 @@ fn robust_detector_matches_the_classic_one_on_a_clean_fly() {
 }
 
 /// Regenerate the README figure:
-/// REKKE_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored
+/// REKKEFLY_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored
 #[test]
-#[ignore = "writes the README figure when REKKE_FIGURE is set"]
+#[ignore = "writes the README figure when REKKEFLY_FIGURE is set"]
 fn figure_classic_versus_robust() {
-    let Some(out) = std::env::var_os("REKKE_FIGURE") else {
+    let Some(out) = std::env::var_os("REKKEFLY_FIGURE") else {
         return;
     };
     let scene = Scene::new(
@@ -336,8 +336,8 @@ fn figure_classic_versus_robust() {
                 figure.put_pixel(ox + x, y, image::Rgb([v, v, v]));
             }
         }
-        let mut line = |a: rekke::config::Point,
-                        b: rekke::config::Point,
+        let mut line = |a: rekkefly::config::Point,
+                        b: rekkefly::config::Point,
                         color: [u8; 3],
                         width: f32,
                         dash: bool| {
@@ -415,4 +415,378 @@ fn figure_classic_versus_robust() {
         }
     }
     figure.save(out).unwrap();
+}
+
+/// Error statistics including the L−R spikes an experiment would see.
+struct Spikes {
+    wrong: usize,
+    lr_wrong: usize,
+    lr_worst: f32,
+    median: f32,
+}
+fn spikes(options: SceneOptions, method: Method, frames: usize) -> Spikes {
+    let scene = Scene::new(640, 480, options);
+    let mut config = Config::default();
+    scene.configure(&mut config);
+    config.output.enabled = false;
+    config.tracking.left.method = method;
+    config.tracking.right.method = method;
+    let tracker = Tracker::new(&config, 640, 480);
+    let (mut wrong, mut lr_wrong, mut lr_worst) = (0, 0, 0.0f32);
+    let mut errors = Vec::new();
+    for k in 0..frames {
+        let t = k as f32 / 30.0;
+        let m = tracker
+            .process(&scene.render(t, k as u64), None, 0)
+            .unwrap();
+        let truth = scene.truth(t);
+        for (wing, part) in [&m.left, &m.right].into_iter().enumerate() {
+            let e = part.angle_rad.map_or(f32::INFINITY, |a| {
+                (a - truth.front[wing]).abs().to_degrees()
+            });
+            wrong += usize::from(e > 4.0);
+            errors.push(e);
+        }
+        let lr = m.left_minus_right_rad.map_or(f32::INFINITY, |d| {
+            (d - (truth.front[0] - truth.front[1])).abs().to_degrees()
+        });
+        lr_wrong += usize::from(lr > 4.0);
+        lr_worst = lr_worst.max(lr);
+    }
+    errors.sort_by(f32::total_cmp);
+    Spikes {
+        wrong,
+        lr_wrong,
+        lr_worst,
+        median: errors[errors.len() / 2],
+    }
+}
+fn line_scenarios() -> Vec<(&'static str, SceneOptions)> {
+    let quiet = SceneOptions {
+        legs: false,
+        leg_kicks: false,
+        antennae: false,
+        ..SceneOptions::default()
+    };
+    vec![
+        (
+            "6 lines, as dark as the blur",
+            SceneOptions {
+                lines: 6,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "6 lines, half as dark",
+            SceneOptions {
+                lines: 6,
+                line_contrast: 0.07,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "6 lines, twice as dark",
+            SceneOptions {
+                lines: 6,
+                line_contrast: 0.28,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "6 lines, 4 px wide",
+            SceneOptions {
+                lines: 6,
+                line_width: 4.0,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "line hugging edge +3° outside",
+            SceneOptions {
+                edge_line_deg: Some(3.0),
+                ..quiet.clone()
+            },
+        ),
+        (
+            "line hugging edge +6° outside",
+            SceneOptions {
+                edge_line_deg: Some(6.0),
+                ..quiet.clone()
+            },
+        ),
+        (
+            "line 4° inside the blur",
+            SceneOptions {
+                edge_line_deg: Some(-4.0),
+                ..quiet.clone()
+            },
+        ),
+        (
+            "faint wing, 10 lines + legs",
+            SceneOptions {
+                lines: 10,
+                wing_contrast: 0.07,
+                line_contrast: 0.07,
+                ..SceneOptions::default()
+            },
+        ),
+    ]
+}
+#[test]
+#[ignore = "prints a comparison table; run with --ignored --nocapture"]
+fn narrow_lines_of_wing_like_contrast() {
+    for (name, options) in line_scenarios() {
+        for method in [Method::Edge, Method::WingBlur] {
+            let s = spikes(options.clone(), method, 300);
+            println!(
+                "{name:32} {:9} wing>4° {:4}/600  L−R>4° {:4}/300  L−R worst {:6.1}°  median {:4.2}°",
+                format!("{method:?}"),
+                s.wrong,
+                s.lr_wrong,
+                s.lr_worst,
+                s.median
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "prints a comparison table; run with --ignored --nocapture"]
+fn wide_lines_versus_filter_width() {
+    let quiet = SceneOptions {
+        legs: false,
+        leg_kicks: false,
+        antennae: false,
+        ..SceneOptions::default()
+    };
+    let cases = [
+        ("clean", quiet.clone()),
+        (
+            "faint + legs",
+            SceneOptions {
+                wing_contrast: 0.07,
+                ..SceneOptions::default()
+            },
+        ),
+        (
+            "lines 6 px",
+            SceneOptions {
+                lines: 6,
+                line_width: 6.0,
+                line_contrast: 0.2,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "lines 9 px",
+            SceneOptions {
+                lines: 6,
+                line_width: 9.0,
+                line_contrast: 0.2,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "lines 12 px",
+            SceneOptions {
+                lines: 6,
+                line_width: 12.0,
+                line_contrast: 0.2,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "edge +4°, 6 px",
+            SceneOptions {
+                edge_line_deg: Some(4.0),
+                line_width: 6.0,
+                ..quiet.clone()
+            },
+        ),
+        (
+            "edge +8°, 9 px",
+            SceneOptions {
+                edge_line_deg: Some(8.0),
+                line_width: 9.0,
+                ..quiet.clone()
+            },
+        ),
+    ];
+    for width in [5.0, 8.0, 12.0] {
+        for (name, options) in &cases {
+            let scene = Scene::new(640, 480, options.clone());
+            let mut config = Config::default();
+            scene.configure(&mut config);
+            config.output.enabled = false;
+            config.tracking.left.spike_width_deg = width;
+            config.tracking.right.spike_width_deg = width;
+            let tracker = Tracker::new(&config, 640, 480);
+            let (mut wrong, mut worst) = (0, 0.0f32);
+            let mut errors = Vec::new();
+            for k in 0..240 {
+                let t = k as f32 / 30.0;
+                let m = tracker.process(&scene.render(t, k), None, 0).unwrap();
+                let truth = scene.truth(t);
+                for (wing, part) in [&m.left, &m.right].into_iter().enumerate() {
+                    let e = part.angle_rad.map_or(f32::INFINITY, |a| {
+                        (a - truth.front[wing]).abs().to_degrees()
+                    });
+                    wrong += usize::from(e > 4.0);
+                    worst = worst.max(e);
+                    errors.push(e);
+                }
+            }
+            errors.sort_by(f32::total_cmp);
+            println!(
+                "filter {width:4}°  {name:16} wrong {wrong:3}/480  median {:4.2}°  worst {worst:6.1}°",
+                errors[240]
+            );
+        }
+    }
+}
+#[test]
+#[ignore = "diagnostic: prints failing frames"]
+fn diagnose_wide_lines() {
+    let options = SceneOptions {
+        legs: false,
+        leg_kicks: false,
+        antennae: false,
+        lines: 6,
+        line_width: 12.0,
+        line_contrast: 0.2,
+        ..SceneOptions::default()
+    };
+    let scene = Scene::new(640, 480, options);
+    let mut config = Config::default();
+    scene.configure(&mut config);
+    config.output.enabled = false;
+    let tracker = Tracker::new(&config, 640, 480);
+    let mut shown = 0;
+    for k in 0..240 {
+        let t = k as f32 / 30.0;
+        let frame = scene.render(t, k);
+        let m = tracker.process(&frame, None, 0).unwrap();
+        let truth = scene.truth(t);
+        for (wing, part) in [&m.left, &m.right].into_iter().enumerate() {
+            let e = part
+                .angle_rad
+                .map_or(f32::INFINITY, |a| (a - truth.front[wing]).to_degrees());
+            if e.abs() > 4.0 && shown < 12 {
+                shown += 1;
+                println!(
+                    "t={t:5.2} wing {wing} truth {:6.1}° got {:?} err {e:6.1}° grads {:?}",
+                    truth.front[wing].to_degrees(),
+                    part.angles_rad
+                        .iter()
+                        .map(|a| (a.to_degrees() * 10.0).round() / 10.0)
+                        .collect::<Vec<_>>(),
+                    part.gradients
+                        .iter()
+                        .map(|g| (g * 1000.0).round() / 1000.0)
+                        .collect::<Vec<_>>()
+                );
+                if shown == 1 {
+                    frame
+                        .save(std::path::Path::new("/tmp/claude-0/scratch/wide-fail.png"))
+                        .unwrap();
+                }
+            }
+        }
+    }
+}
+
+/// Narrow lines as dark as the wing blur, inside it, outside it and hugging
+/// the leading edge on one wing only: the robust detector keeps L−R clean,
+/// while the classic one shows the spikes an experiment would see.
+#[test]
+fn narrow_lines_never_spike_left_minus_right() {
+    let quiet = SceneOptions {
+        legs: false,
+        leg_kicks: false,
+        antennae: false,
+        ..SceneOptions::default()
+    };
+    let cases = [
+        SceneOptions {
+            lines: 6,
+            ..quiet.clone()
+        },
+        SceneOptions {
+            lines: 6,
+            line_contrast: 0.28,
+            line_width: 4.0,
+            ..quiet.clone()
+        },
+        SceneOptions {
+            edge_line_deg: Some(3.0),
+            ..quiet.clone()
+        },
+        SceneOptions {
+            edge_line_deg: Some(-4.0),
+            ..quiet.clone()
+        },
+    ];
+    for options in &cases {
+        let s = spikes(options.clone(), Method::WingBlur, 45);
+        assert_eq!(s.wrong, 0, "{options:?}");
+        assert_eq!(s.lr_wrong, 0, "{options:?}");
+        assert!(
+            s.lr_worst < 3.0,
+            "L−R worst {}° for {options:?}",
+            s.lr_worst
+        );
+    }
+    let classic = spikes(cases[2].clone(), Method::Edge, 45);
+    assert!(
+        classic.lr_wrong > 5,
+        "classic L−R errors {}",
+        classic.lr_wrong
+    );
+}
+
+/// Write the README's L−R trace: REKKEFLY_TRACE=trace.csv cargo test --release
+/// --test intrusions trace -- --ignored
+#[test]
+#[ignore = "writes the README trace when REKKEFLY_TRACE is set"]
+fn trace_left_minus_right() {
+    let Some(out) = std::env::var_os("REKKEFLY_TRACE") else {
+        return;
+    };
+    let options = SceneOptions {
+        lines: 6,
+        edge_line_deg: Some(3.0),
+        ..SceneOptions::default()
+    };
+    let scene = Scene::new(640, 480, options);
+    let trackers: Vec<Tracker> = [Method::Edge, Method::WingBlur]
+        .into_iter()
+        .map(|method| {
+            let mut config = Config::default();
+            scene.configure(&mut config);
+            config.output.enabled = false;
+            config.tracking.left.method = method;
+            config.tracking.right.method = method;
+            Tracker::new(&config, 640, 480)
+        })
+        .collect();
+    let mut csv = String::from("t,truth,classic,robust\n");
+    for k in 0..360 {
+        let t = k as f32 / 30.0;
+        let frame = scene.render(t, k);
+        let truth = scene.truth(t);
+        let lr = |tracker: &Tracker| {
+            tracker
+                .process(&frame, None, 0)
+                .unwrap()
+                .left_minus_right_rad
+                .map_or("".to_string(), |d| format!("{:.3}", d.to_degrees()))
+        };
+        csv += &format!(
+            "{t:.4},{:.3},{},{}\n",
+            (truth.front[0] - truth.front[1]).to_degrees(),
+            lr(&trackers[0]),
+            lr(&trackers[1])
+        );
+    }
+    std::fs::write(out, csv).unwrap();
 }

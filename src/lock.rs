@@ -2,7 +2,7 @@
 //!
 //! Each window or headless instance holds an OS file lock beside its config
 //! (`.<name>.lock`). The OS releases it when the process exits or crashes, so
-//! there is nothing to clean up. A second Rekke started without `--config`
+//! there is nothing to clean up. A second Rekkefly started without `--config`
 //! uses the next free rig config instead of fighting over a camera and ports.
 use anyhow::{Result, bail};
 use std::{
@@ -19,7 +19,7 @@ impl ConfigLock {
         let name = config
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "rekke.toml".into());
+            .unwrap_or_else(|| "rekkefly.toml".into());
         config.with_file_name(format!(".{name}.lock"))
     }
     /// `Ok(None)` if another running instance holds this config.
@@ -55,7 +55,7 @@ impl ConfigLock {
         match Self::try_acquire(config)? {
             Some(lock) => Ok(lock),
             None => bail!(
-                "{} is already open in another Rekke window or rig. Close it first, or start a different config (rekke --config other.toml).",
+                "{} is already open in another Rekkefly window or rig. Close it first, or start a different config (rekkefly --config other.toml).",
                 config.display()
             ),
         }

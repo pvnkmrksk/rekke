@@ -1,31 +1,31 @@
-REKKE 0.6 — INSTALLATION AND FIRST STEPS
+REKKEFLY 0.6 — INSTALLATION AND FIRST STEPS
 
 MAC
-1. Open the DMG and drag Rekke onto the Applications shortcut.
-2. Eject the image and open Rekke from Applications. Allow camera access.
-3. If macOS says Rekke "cannot be opened" (the app is free and not
+1. Open the DMG and drag Rekkefly onto the Applications shortcut.
+2. Eject the image and open Rekkefly from Applications. Allow camera access.
+3. If macOS says Rekkefly "cannot be opened" (the app is free and not
    notarized by Apple), and you trust this download, run once in Terminal:
 
-       xattr -dr com.apple.quarantine "/Applications/Rekke.app"
+       xattr -dr com.apple.quarantine "/Applications/Rekkefly.app"
 
-   This clears the download flag on Rekke only; Gatekeeper stays on.
-   Alternatively: try to open Rekke once, then System Settings >
+   This clears the download flag on Rekkefly only; Gatekeeper stays on.
+   Alternatively: try to open Rekkefly once, then System Settings >
    Privacy & Security > Open Anyway.
-   Configs: ~/Library/Application Support/Rekke/configs/
+   Configs: ~/Library/Application Support/Rekkefly/configs/
 
 WINDOWS 10/11 (64-bit)
-Run Rekke-0.6.0-windows-x64-setup.exe. It installs for your user account
+Run Rekkefly-0.6.0-windows-x64-setup.exe. It installs for your user account
 (no administrator rights) and adds Start-menu and desktop shortcuts, including
-"Rekke - start all rigs". SmartScreen may ask you to confirm the unsigned app.
-Configs: %APPDATA%\Rekke\configs (kept when you uninstall).
+"Rekkefly - start all rigs". SmartScreen may ask you to confirm the unsigned app.
+Configs: %APPDATA%\Rekkefly\configs (kept when you uninstall).
 
 UBUNTU 22.04 OR NEWER (x86-64)
-    sudo apt install ./rekke_0.6.0_amd64.deb
-Open Rekke from the app menu (right-click for "Start all rigs") or run: rekke
-Configs: ~/.config/rekke/configs
+    sudo apt install ./rekkefly_0.6.0_amd64.deb
+Open Rekkefly from the app menu (right-click for "Start all rigs") or run: rekkefly
+Configs: ~/.config/rekkefly/configs
 
 FIRST STEPS
-- Rekke opens the first camera it can. With no camera, a 30-second sample
+- Rekkefly opens the first camera it can. With no camera, a 30-second sample
   video plays; connect a camera and click "Retry camera".
 - Drag the dots onto the insect: magenta = head, cyan = tail, red/green =
   wing hinges, corner dots = sector angle and radius. Edits save automatically.
@@ -34,16 +34,16 @@ FIRST STEPS
 - Drop a video file on the window to track it. Record with the Record button.
 
 SEVERAL CAMERAS
-- Click "New window" (or start Rekke again): the next window takes the next
+- Click "New window" (or start Rekkefly again): the next window takes the next
   rig config (camera-b.toml: camera 1, ZMQ 9872, UDP 5502).
 - Or list every rig in rigs.toml (label, device, ports) and run:
-      rekke --rigs
-      rekke --rigs --headless --record
-  On Mac use /Applications/Rekke.app/Contents/MacOS/rekke instead of rekke.
-- Find camera numbers with:  rekke --list-cameras
+      rekkefly --rigs
+      rekkefly --rigs --headless --record
+  On Mac use /Applications/Rekkefly.app/Contents/MacOS/rekkefly instead of rekkefly.
+- Find camera numbers with:  rekkefly --list-cameras
 
 PORTABLE FOLDERS
-Extract the whole folder and run ./rekke (rekke.exe on Windows) or one of the
+Extract the whole folder and run ./rekkefly (rekkefly.exe on Windows) or one of the
 launchers (Demo, Sample Video, Camera A/B, All Rigs). Configs are read from the
 folder's configs/ directory.
 

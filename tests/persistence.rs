@@ -1,4 +1,4 @@
-use rekke::{
+use rekkefly::{
     config::Config,
     geometry::{self, Handle},
     persistence::Autosaver,
@@ -11,11 +11,11 @@ fn autosave_flushes_last_marker_state_on_close_and_preserves_background_path() {
     c.save(&path).unwrap();
     let saver = Autosaver::new(path.clone());
     for x in [322.0, 326.0, 330.0] {
-        let p = rekke::config::Point { x, y: 250.0 };
+        let p = rekkefly::config::Point { x, y: 250.0 };
         geometry::move_handle(&mut c, Handle::Body, p).unwrap();
         saver.submit(c.clone());
     }
-    c.tracking.right.method = rekke::config::Method::WingBlur;
+    c.tracking.right.method = rekkefly::config::Method::WingBlur;
     c.tracking.right.spike_width_deg = 7.0;
     saver.submit(c.clone());
     drop(saver);

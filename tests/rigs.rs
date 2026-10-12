@@ -1,4 +1,4 @@
-use rekke::{
+use rekkefly::{
     config::{Config, SourceConfig},
     lock::ConfigLock,
     rigs::{LaunchOptions, RigEntry, RigSet, child_arguments},
@@ -186,7 +186,7 @@ fn a_rig_already_open_elsewhere_is_reported_before_launch() {
     let manifest = dir.path().join("rigs.toml");
     std::fs::write(&manifest, toml::to_string(&rigs).unwrap()).unwrap();
     let _held = ConfigLock::acquire(&dir.path().join("one.toml")).unwrap();
-    let error = rekke::rigs::launch(
+    let error = rekkefly::rigs::launch(
         &manifest,
         LaunchOptions {
             headless: true,

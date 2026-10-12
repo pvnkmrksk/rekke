@@ -1,15 +1,15 @@
 # Rig manifest: start every rig with ONE command, each in its own window
 # (or headless) with its own camera, ports, background and recordings.
 #
-#   rekke --rigs rigs.toml                    one window per rig
-#   rekke --rigs rigs.toml --headless --record
-#   rekke --rigs rigs.toml --demo             check the set without cameras
+#   rekkefly --rigs rigs.toml                    one window per rig
+#   rekkefly --rigs rigs.toml --headless --record
+#   rekkefly --rigs rigs.toml --demo             check the set without cameras
 #
 # Each [[rigs]] entry may set:
 #   label      name in the window title, logs and recording folders
 #   config     the rig's own settings file (markers, detector, background);
 #              default "<label>.toml" beside this manifest, created if missing
-#   device     camera: "auto", a number from `rekke --list-cameras`, a device
+#   device     camera: "auto", a number from `rekkefly --list-cameras`, a device
 #              path (/dev/v4l/by-id/...) or part of the camera name
 #   video      track a video file instead of a camera (relative to this file)
 #   zmq_port   Kinefly-format ZMQ publisher port
@@ -18,7 +18,7 @@
 #   record     start recording when the rig starts
 #   enabled    false skips the rig
 # Values given here apply to the run; anything left out comes from the rig's config.
-# Rekke refuses to start if two rigs would share a camera, port, label or file.
+# Rekkefly refuses to start if two rigs would share a camera, port, label or file.
 
 [[rigs]]
 label = "rig-a"
@@ -38,7 +38,7 @@ udp_port = 5502
 udp_target = "127.0.0.1:5602"
 record = false
 
-# A third rig: uncomment, and Rekke creates rig-c.toml on first launch.
+# A third rig: uncomment, and Rekkefly creates rig-c.toml on first launch.
 # [[rigs]]
 # label = "rig-c"
 # device = "2"

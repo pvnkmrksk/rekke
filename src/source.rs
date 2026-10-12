@@ -143,7 +143,7 @@ fn open_video(
                         "{native:#}. FFmpeg fallback also failed: {error:#}"
                     ),
                     _ => error.context(
-                        "This video format needs FFmpeg. Install FFmpeg, or use an AVI recorded by Rekke",
+                        "This video format needs FFmpeg. Install FFmpeg, or use an AVI recorded by Rekkefly",
                     ),
                 }
             })?;
@@ -156,11 +156,13 @@ fn open_video(
 }
 
 /// Where a bundled sample video may live, most specific first. A file in
-/// the user's Rekke folder overrides the one shipped with the app.
+/// the user's Rekkefly folder overrides the one shipped with the app.
 pub fn sample_candidates(exe: Option<&Path>, user: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
     const NAME: &str = "sample-fly.avi";
     let mut paths = Vec::new();
-    if let Some(path) = std::env::var_os("REKKE_SAMPLE") {
+    if let Some(path) =
+        std::env::var_os("REKKEFLY_SAMPLE").or_else(|| std::env::var_os("REKKE_SAMPLE"))
+    {
         paths.push(PathBuf::from(path));
     }
     if let Some(user) = user {
@@ -169,7 +171,7 @@ pub fn sample_candidates(exe: Option<&Path>, user: Option<&Path>, cwd: &Path) ->
     if let Some(dir) = exe.and_then(Path::parent) {
         paths.push(dir.join("samples").join(NAME));
         paths.push(dir.join("../Resources/samples").join(NAME));
-        paths.push(dir.join("../share/rekke/samples").join(NAME));
+        paths.push(dir.join("../share/rekkefly/samples").join(NAME));
         paths.push(dir.join("../../samples").join(NAME));
     }
     paths.push(cwd.join("samples").join(NAME));
@@ -327,7 +329,7 @@ impl FrameSource for AviSource {
     }
 }
 
-/// The FFmpeg executable: REKKE_FFMPEG, one beside Rekke, or `ffmpeg` on PATH.
+/// The FFmpeg executable: REKKEFLY_FFMPEG, one beside Rekkefly, or `ffmpeg` on PATH.
 pub fn ffmpeg_executable() -> PathBuf {
     let adjacent = std::env::current_exe()
         .ok()
@@ -338,7 +340,8 @@ pub fn ffmpeg_executable() -> PathBuf {
         } else {
             "ffmpeg"
         });
-    std::env::var_os("REKKE_FFMPEG")
+    std::env::var_os("REKKEFLY_FFMPEG")
+        .or_else(|| std::env::var_os("REKKE_FFMPEG"))
         .or_else(|| std::env::var_os("WINGTRACE_FFMPEG"))
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -391,9 +394,9 @@ impl FfmpegSource {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        let mut child = command
-            .spawn()
-            .context("Start FFmpeg: install ffmpeg or put it beside Rekke for this video/stream")?;
+        let mut child = command.spawn().context(
+            "Start FFmpeg: install ffmpeg or put it beside Rekkefly for this video/stream",
+        )?;
         let stdout = child
             .stdout
             .take()

@@ -1,10 +1,10 @@
-# Rekke · ರೆಕ್ಕೆ
+# Rekkefly · ರೆಕ್ಕೆ
 
-<img src="assets/rekke-256.png" width="112" align="right" alt="Rekke icon: an insect wing with its motion-blur stroke envelope">
+<img src="assets/rekkefly-256.png" width="112" align="right" alt="Rekkefly icon: an insect wing with its motion-blur stroke envelope">
 
-**Rekke** tracks the wings of a tethered insect from a camera or a video file and streams the angles to your experiment in real time. It is a single native app, inspired by [Kinefly](https://github.com/ssafarik/Kinefly), with no ROS, Python or OpenCV to install. The name is the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86).
+**Rekkefly** tracks the wings of a tethered insect from a camera or a video file and streams the angles to your experiment in real time. It is a single native app, inspired by [Kinefly](https://github.com/ssafarik/Kinefly), with no ROS, Python or OpenCV to install. The name is the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86).
 
-![Rekke tracking both wings of a tethered fly](docs/images/main-window.png)
+![Rekkefly tracking both wings of a tethered fly](docs/images/main-window.png)
 
 - **Download, double-click, track.** Your camera opens. With no camera, a 30-second sample video plays so you can learn the app.
 - **Ignores legs and antennae.** The default detector follows the wing's motion-blur edge even when a leg or antenna enters the tracking region ([details](#ignore-legs-and-antennae)).
@@ -38,14 +38,14 @@
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Mac, Apple silicon (M1 and later) | `Rekke-0.6.0-macos-arm64.dmg` | Open it and drag **Rekke** onto **Applications** |
-| Mac, Intel | `Rekke-0.6.0-macos-x64.dmg` | Open it and drag **Rekke** onto **Applications** |
-| Windows 10/11 | `Rekke-0.6.0-windows-x64-setup.exe` | Run it. No administrator rights needed |
-| Ubuntu 22.04 or newer | `rekke_0.6.0_amd64.deb` | `sudo apt install ./rekke_0.6.0_amd64.deb` |
+| Mac, Apple silicon (M1 and later) | `Rekkefly-0.6.0-macos-arm64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Mac, Intel | `Rekkefly-0.6.0-macos-x64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Windows 10/11 | `Rekkefly-0.6.0-windows-x64-setup.exe` | Run it. No administrator rights needed |
+| Ubuntu 22.04 or newer | `rekkefly_0.6.0_amd64.deb` | `sudo apt install ./rekkefly_0.6.0_amd64.deb` |
 
 On a Mac, the first launch may be blocked because the app is not notarized. See [Mac: first launch](#mac-first-launch).
 
-**2. Open Rekke.** It uses the first camera it can open. Allow camera access if your system asks. With no camera, the bundled sample video plays and an amber banner says so. Click **Retry camera** after connecting one.
+**2. Open Rekkefly.** It uses the first camera it can open. Allow camera access if your system asks. With no camera, the bundled sample video plays and an amber banner says so. Click **Retry camera** after connecting one.
 
 **3. Place the markers** by dragging the dots:
 
@@ -81,7 +81,7 @@ Every change saves automatically to the rig's config file. Close the window and 
 | **Threshold L / R** | 0 reports the strongest edge, however faint. Raise it to reject noise. Applies live |
 | **Ignore legs** | Robust wing detector, on by default ([why](#ignore-legs-and-antennae)) |
 | **Record** | Starts and stops video recording ([formats](#recording-video)) |
-| **New window** | Opens another Rekke window for the next rig, with its own camera and ports |
+| **New window** | Opens another Rekkefly window for the next rig, with its own camera and ports |
 | **Settings** | Detector, precise geometry, camera, outputs, recording and sampling |
 
 **Angles.** Wing angles are 0 when the wing points straight out from the body axis and positive toward the head. Kinefly uses the same convention. Head and abdomen angles follow the body axis, with clockwise positive in the image. All transmitted angles are in radians; geometry settings are in degrees.
@@ -97,31 +97,31 @@ Every change saves automatically to the rig's config file. Close the window and 
 **Open a video:** drag it onto the window, or run:
 
 ```sh
-rekke recording.avi            # play at the recorded speed
-rekke recording.avi --loop     # loop it
+rekkefly recording.avi            # play at the recorded speed
+rekkefly recording.avi --loop     # loop it
 ```
 
-AVI files play natively, with no extra software. This covers Rekke and Wingtrace recordings (MJPEG, PNG, raw Y800) and most uncompressed 8/24/32-bit AVIs. Recordings cut short by a crash or power loss also play. Other formats such as MP4 and MOV need [FFmpeg](https://ffmpeg.org/download.html) installed. Videos of a different size are scaled to the configured size **without changing their aspect ratio**, because stretching the image would bias every angle.
+AVI files play natively, with no extra software. This covers Rekkefly and Wingtrace recordings (MJPEG, PNG, raw Y800) and most uncompressed 8/24/32-bit AVIs. Recordings cut short by a crash or power loss also play. Other formats such as MP4 and MOV need [FFmpeg](https://ffmpeg.org/download.html) installed. Videos of a different size are scaled to the configured size **without changing their aspect ratio**, because stretching the image would bias every angle.
 
 A video opened like this applies **to this run only**. Your saved camera setup is untouched. **Settings → Camera / input** has **Back to saved source** and **Save as this config's source**.
 
 **Offline analysis** processes every frame as fast as possible and writes one JSON line per frame:
 
 ```sh
-rekke --config my-rig.toml recording.avi --fast --headless
+rekkefly --config my-rig.toml recording.avi --fast --headless
 ```
 
 Set `output.jsonl_path = "results.jsonl"` in `my-rig.toml` to choose the output file. At 640×480 this runs at several hundred frames per second, including MJPEG decoding (about 450 frames/s on the 4-core test machine).
 
-**Cut a snippet, or shrink a raw recording**, with `rekke clip`. It never overwrites a file:
+**Cut a snippet, or shrink a raw recording**, with `rekkefly clip`. It never overwrites a file:
 
 ```sh
 # 30 seconds starting 1 minute in, as small MJPEG
-rekke clip video-0003.avi snippet.avi --start 60 --duration 30
+rekkefly clip video-0003.avi snippet.avi --start 60 --duration 30
 # Convert a whole raw recording to lossless PNG frames (about half the size)
-rekke clip video-0000.avi video-0000-png.avi --format png
+rekkefly clip video-0000.avi video-0000-png.avi --format png
 # Keep every 2nd frame
-rekke clip big.avi half-rate.avi --every 2
+rekkefly clip big.avi half-rate.avi --every 2
 ```
 
 ### The sample video
@@ -132,11 +132,11 @@ rekke clip big.avi half-rate.avi --every 2
 
 ## Several rigs at once
 
-Each rig needs its own **camera**, its own **ports** and its own **config file**, which holds its markers, background and recordings. Rekke checks all three before starting anything, so two rigs can never fight over a camera or a port.
+Each rig needs its own **camera**, its own **ports** and its own **config file**, which holds its markers, background and recordings. Rekkefly checks all three before starting anything, so two rigs can never fight over a camera or a port.
 
 ### Quick: one more window
 
-Click **New window**, or start Rekke a second time without arguments. The new window takes the next rig config: `camera-b.toml` uses camera 1 and ports 5502/9872. A third window creates `camera-c.toml` with camera 2 and ports 5503/9873, and so on.
+Click **New window**, or start Rekkefly a second time without arguments. The new window takes the next rig config: `camera-b.toml` uses camera 1 and ports 5502/9872. A third window creates `camera-c.toml` with camera 2 and ports 5503/9873, and so on.
 
 ### Repeatable: every rig with one command
 
@@ -145,7 +145,7 @@ Describe your rigs once in `rigs.toml`:
 ```toml
 [[rigs]]
 label = "left-arena"       # window title, logs, recording folders
-device = "0"               # first camera in `rekke --list-cameras`
+device = "0"               # first camera in `rekkefly --list-cameras`
 zmq_port = 9871
 udp_port = 5501
 udp_target = "127.0.0.1:5601"
@@ -162,9 +162,9 @@ record = true              # this rig records from the start
 Then start them all:
 
 ```sh
-rekke --rigs rigs.toml                     # one window per rig
-rekke --rigs rigs.toml --headless --record # no windows, record everything
-rekke --rigs rigs.toml --demo              # dry run with simulated flies
+rekkefly --rigs rigs.toml                     # one window per rig
+rekkefly --rigs rigs.toml --headless --record # no windows, record everything
+rekkefly --rigs rigs.toml --demo              # dry run with simulated flies
 ```
 
 ```text
@@ -186,18 +186,18 @@ Press Ctrl+C to stop every rig.
 
 Values in `rigs.toml` apply to that launch. Everything else, such as markers, detector settings and the background, lives in the rig's config file and is saved there as you edit. **Ctrl+C** stops all rigs and finishes every recording cleanly. If one rig fails, the others are stopped and the error is printed.
 
-Installed apps keep a ready-made `rigs.toml` next to your configs, so plain `rekke --rigs` works:
+Installed apps keep a ready-made `rigs.toml` next to your configs, so plain `rekkefly --rigs` works:
 
 | System | Your configs | All-rigs shortcut |
 | --- | --- | --- |
-| Mac | `~/Library/Application Support/Rekke/configs/` | `/Applications/Rekke.app/Contents/MacOS/rekke --rigs` |
-| Windows | `%APPDATA%\Rekke\configs\` | Start menu → **Rekke - start all rigs** |
-| Ubuntu | `~/.config/rekke/configs/` | App menu → Rekke → **Start all rigs** |
+| Mac | `~/Library/Application Support/Rekkefly/configs/` | `/Applications/Rekkefly.app/Contents/MacOS/rekkefly --rigs` |
+| Windows | `%APPDATA%\Rekkefly\configs\` | Start menu → **Rekkefly - start all rigs** |
+| Ubuntu | `~/.config/rekkefly/configs/` | App menu → Rekkefly → **Start all rigs** |
 
 ### Choosing cameras
 
 ```sh
-rekke --list-cameras
+rekkefly --list-cameras
 ```
 
 ```text
@@ -219,7 +219,7 @@ Use the number (or the path/name) as source.device:
 
 *Synthetic fly with its front legs reaching forward. White dashes: the true leading edge. Orange: the detected edge. **Left:** the classic strongest-edge detector locks onto the legs. **Right:** the robust default stays on the wing.*
 
-A beating wing appears as a faint, translucent **stroke envelope**, and its leading edge is what Rekke measures. Legs and antennae are thin, opaque and much darker, so the classic strongest-edge method readily picks them instead. The robust detector (TOML `method = "wing_blur"`, the default since 0.6) does three things:
+A beating wing appears as a faint, translucent **stroke envelope**, and its leading edge is what Rekkefly measures. Legs and antennae are thin, opaque and much darker, so the classic strongest-edge method readily picks them instead. The robust detector (TOML `method = "wing_blur"`, the default since 0.6) does three things:
 
 1. **Caps contrast** in each of up to 8 radial bands, so an opaque leg cannot outweigh a translucent wing.
 2. **Removes thin features.** It removes angular features narrower than `spike_width_deg` (default 5°) with a morphological opening, and a broad wing envelope passes through unchanged.
@@ -256,11 +256,11 @@ recordings/rig-a-1791769898523379000-63855/
 
 | `format` | Size at 640×480, 60 fps | Bit-exact | Plays in |
 | --- | --- | --- | --- |
-| `"mjpeg"` (default) | ≈ 1.5–3 MB/s (≈ 5–10 GB/hour) | No; quality 90 is visually lossless for tracking | Rekke, VLC, FFmpeg |
-| `"png"` | ≈ 8–10 MB/s | Yes | Rekke, FFmpeg |
-| `"raw"` | 18.4 MB/s (66 GB/hour) | Yes | Rekke, VLC, FFmpeg |
+| `"mjpeg"` (default) | ≈ 1.5–3 MB/s (≈ 5–10 GB/hour) | No; quality 90 is visually lossless for tracking | Rekkefly, VLC, FFmpeg |
+| `"png"` | ≈ 8–10 MB/s | Yes | Rekkefly, FFmpeg |
+| `"raw"` | 18.4 MB/s (66 GB/hour) | Yes | Rekkefly, VLC, FFmpeg |
 
-Encoding runs on its own threads, in parallel only when frames queue up. The camera thread only hands over a reference to the frame. Rekke never silently drops a frame. If the disk cannot keep up, recording stops with a visible error and tracking continues. Recordings show the camera image without overlays, before subtraction or inversion. Set `quality` (1–100) for MJPEG. Shrink older raw recordings afterwards with [`rekke clip`](#video-files).
+Encoding runs on its own threads, in parallel only when frames queue up. The camera thread only hands over a reference to the frame. Rekkefly never silently drops a frame. If the disk cannot keep up, recording stops with a visible error and tracking continues. Recordings show the camera image without overlays, before subtraction or inversion. Set `quality` (1–100) for MJPEG. Shrink older raw recordings afterwards with [`rekkefly clip`](#video-files).
 
 ---
 
@@ -274,7 +274,7 @@ Each rig binds a ZMQ PUB socket (default `tcp://*:9871`, rig B `9872`). Subscrib
 {"x":0.25,"y":-0.5,"z":0.0,"yaw":0.75,"pitch":0.0,"roll":0.0,"frame_number":77,"timestamp_unix":1700000000.125}
 ```
 
-`x`/`y` are the left/right wing angles in radians, `yaw = x − y`, missing angles are `0.0`, `frame_number` is the source frame sequence and `timestamp_unix` is when the frame arrived. Rekke replaces the bridge, so don't run both on the same port. ZMQ PUB/SUB drops messages sent before a subscriber connects, and it never blocks tracking. A subscriber that stalls for 500 ms stops the run with an error.
+`x`/`y` are the left/right wing angles in radians, `yaw = x − y`, missing angles are `0.0`, `frame_number` is the source frame sequence and `timestamp_unix` is when the frame arrived. Rekkefly replaces the bridge, so don't run both on the same port. ZMQ PUB/SUB drops messages sent before a subscriber connects, and it never blocks tracking. A subscriber that stalls for 500 ms stops the run with an error.
 
 ```sh
 python3 -m pip install pyzmq
@@ -334,19 +334,19 @@ Relative paths are relative to the config file. Edits that change the camera, ou
 ## Command-line reference
 
 ```text
-rekke                               open the GUI with the first free rig config
-rekke VIDEO [--loop] [--fast]       track a video file
-rekke --config FILE                 a specific rig config
-rekke --rigs [rigs.toml]            start every rig in a manifest
-rekke --list-cameras                show camera numbers, names and paths
-rekke clip IN OUT [--start S] [--duration S] [--format mjpeg|png|raw] [--quality Q] [--every N]
+rekkefly                               open the GUI with the first free rig config
+rekkefly VIDEO [--loop] [--fast]       track a video file
+rekkefly --config FILE                 a specific rig config
+rekkefly --rigs [rigs.toml]            start every rig in a manifest
+rekkefly --list-cameras                show camera numbers, names and paths
+rekkefly clip IN OUT [--start S] [--duration S] [--format mjpeg|png|raw] [--quality Q] [--every N]
 
 Run-only overrides (never saved): --device SEL, --video FILE, --label NAME,
   --zmq-port P, --udp-port P, --udp-target IP:PORT, --record, --demo
 Other: --headless, --frames N, --benchmark, --screenshot PNG, --init
 ```
 
-Run `rekke --help` for the full text.
+Run `rekkefly --help` for the full text.
 
 ---
 
@@ -354,13 +354,13 @@ Run `rekke --help` for the full text.
 
 | Problem | Fix |
 | --- | --- |
-| **Linux: `auto` failed, but `0` worked** (Rekke 0.5) | Fixed in 0.6. Rekke now skips the metadata-only `/dev/video*` nodes that USB cameras create, and tries cameras in order. Run `rekke --list-cameras` to see the numbers |
+| **Linux: `auto` failed, but `0` worked** (Rekkefly 0.5) | Fixed in 0.6. Rekkefly now skips the metadata-only `/dev/video*` nodes that USB cameras create, and tries cameras in order. Run `rekkefly --list-cameras` to see the numbers |
 | **Linux: "Permission denied" for /dev/video0** | `sudo usermod -aG video $USER`, then log out and back in |
-| **"Cannot open camera … may be in use"** | Close the other program or Rekke window that uses that camera, or give this rig another `device` |
+| **"Cannot open camera … may be in use"** | Close the other program or Rekkefly window that uses that camera, or give this rig another `device` |
 | **"Outputs off: Bind output port …"** | Another program or rig uses that port, for example the old Kinefly bridge. Tracking keeps running in the window. Choose another port in Settings → Instance / output |
-| **"… is already open in another Rekke window"** | Each config can be open in one place at a time. Close the other window, or use `--config` with another file |
+| **"… is already open in another Rekkefly window"** | Each config can be open in one place at a time. Close the other window, or use `--config` with another file |
 | **The sample video plays instead of my camera** | No camera could be opened; the banner says why. Connect the camera and click **Retry camera** |
-| **A video won't open** | AVI plays natively. Other formats need FFmpeg on your PATH, or set `REKKE_FFMPEG=/path/to/ffmpeg` |
+| **A video won't open** | AVI plays natively. Other formats need FFmpeg on your PATH, or set `REKKEFLY_FFMPEG=/path/to/ffmpeg` |
 | **The edge jumps to a leg** | Make sure **Ignore legs** is ticked (`method = "wing_blur"`). Increase `spike_width_deg` for thick legs. Check that the inner radius excludes the body |
 | **Recording stopped: "queue is full"** | The disk can't keep up. Use `format = "mjpeg"`, a lower resolution or frame rate, or a faster disk |
 
@@ -370,27 +370,27 @@ Run `rekke --help` for the full text.
 
 ### Mac: first launch
 
-Rekke is free software without a paid Apple signature, so macOS may say it "cannot be opened". If you trust the download, run once in Terminal:
+Rekkefly is free software without a paid Apple signature, so macOS may say it "cannot be opened". If you trust the download, run once in Terminal:
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/Rekke.app"
+xattr -dr com.apple.quarantine "/Applications/Rekkefly.app"
 ```
 
-This only clears the download flag on Rekke. It does not turn off Gatekeeper. Alternatively, try to open Rekke once, then use **System Settings → Privacy & Security → Open Anyway**. ([Apple's explanation](https://support.apple.com/en-au/102445).) Allow camera access when asked. A second window can be opened from the toolbar with **New window**.
+This only clears the download flag on Rekkefly. It does not turn off Gatekeeper. Alternatively, try to open Rekkefly once, then use **System Settings → Privacy & Security → Open Anyway**. ([Apple's explanation](https://support.apple.com/en-au/102445).) Allow camera access when asked. A second window can be opened from the toolbar with **New window**.
 
-Configs and backgrounds live in `~/Library/Application Support/Rekke/configs/`. Settings from an earlier Wingtrace install are imported on first launch.
+Configs and backgrounds live in `~/Library/Application Support/Rekkefly/configs/`. Settings from an earlier Wingtrace install are imported on first launch.
 
 ### Windows
 
-The installer puts Rekke under `%LOCALAPPDATA%\Programs\Rekke`, with Start-menu and desktop shortcuts, plus **Rekke - start all rigs**. Your configs live in `%APPDATA%\Rekke\configs` and are kept on uninstall. The build is unsigned, so SmartScreen may ask for confirmation. You can drag a video file onto the Rekke shortcut to open it.
+The installer puts Rekkefly under `%LOCALAPPDATA%\Programs\Rekkefly`, with Start-menu and desktop shortcuts, plus **Rekkefly - start all rigs**. Your configs live in `%APPDATA%\Rekkefly\configs` and are kept on uninstall. The build is unsigned, so SmartScreen may ask for confirmation. You can drag a video file onto the Rekkefly shortcut to open it.
 
 ### Ubuntu
 
-`sudo apt install ./rekke_0.6.0_amd64.deb` puts `rekke` on your PATH and adds a menu entry with **Start all rigs** and **Open the sample video** actions. Configs live in `~/.config/rekke/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
+`sudo apt install ./rekkefly_0.6.0_amd64.deb` puts `rekkefly` on your PATH and adds a menu entry with **Start all rigs** and **Open the sample video** actions. Configs live in `~/.config/rekkefly/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
 
 ### Portable folders
 
-The ZIP and tarball contain `rekke`, `configs/`, `samples/`, `examples/` and launchers: **Launch Demo**, **Launch Sample Video**, **Launch Camera A/B** and **Launch All Rigs** (`.command` on Mac, `.cmd` on Windows, `.sh` on Linux). Portable configs are read from the folder itself.
+The ZIP and tarball contain `rekkefly`, `configs/`, `samples/`, `examples/` and launchers: **Launch Demo**, **Launch Sample Video**, **Launch Camera A/B** and **Launch All Rigs** (`.command` on Mac, `.cmd` on Windows, `.sh` on Linux). Portable configs are read from the folder itself.
 
 ---
 
@@ -404,7 +404,7 @@ sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev lib
 ```
 
 ```sh
-git clone https://github.com/pvnkmrksk/rekke.git && cd rekke
+git clone https://github.com/pvnkmrksk/rekke.git && cd rekkefly
 cargo run --release -- samples/sample-fly.avi --loop    # try it
 cargo test --locked                                     # 87 tests
 cargo clippy --locked --all-targets -- -D warnings
@@ -414,7 +414,7 @@ cargo build --release --locked --no-default-features    # processing only, no GU
 **Benchmarks** measure processing only: foreground preparation and tracking, with capture, GUI and output excluded. The figures are for 640×480 with both wings at 240 × 72 samples, on a 4-core cloud VM:
 
 ```sh
-./target/release/rekke --config configs/demo.toml --benchmark --frames 5000
+./target/release/rekkefly --config configs/demo.toml --benchmark --frames 5000
 ```
 
 | Detector | 0.5.1 | 0.6.0 |
@@ -424,7 +424,7 @@ cargo build --release --locked --no-default-features    # processing only, no GU
 
 Sampling no longer copies or inverts the whole frame. Each sector is sampled once per frame from precomputed bilinear positions. These positions are rebuilt only when the geometry changes, not when you move a threshold.
 
-**Regenerating assets:** `python3 scripts/icons.py` rasterizes `assets/rekke.svg` into every icon format. `rekke synth samples/sample-fly.avi --seconds 30 --fps 25 --quality 76 --noise 1.0` re-renders the synthetic sample. `REKKE_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` redraws the detector figure.
+**Regenerating assets:** `python3 scripts/icons.py` rasterizes `assets/rekkefly.svg` into every icon format. `rekkefly synth samples/sample-fly.avi --seconds 30 --fps 25 --quality 76 --noise 1.0` re-renders the synthetic sample. `REKKEFLY_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` redraws the detector figure.
 
 **Releases** are built and tested by GitHub Actions on Ubuntu, Windows and both Mac architectures. A `v*` tag publishes the installers after every platform passes. See [VALIDATION.md](VALIDATION.md) for what has and has not been verified.
 
@@ -444,4 +444,4 @@ Sampling no longer copies or inverts the whole frame. Each sector is sampled onc
 | `src/config.rs`, `geometry.rs`, `persistence.rs` | Settings and validation, marker editing, autosave |
 | `src/gui.rs` | The desktop interface |
 
-Rekke was written from scratch after studying Kinefly's README and `tracker_edge.py`. It keeps Kinefly's annular-sector and angular-gradient approach and its angle conventions; it does not copy the Python code.
+Rekkefly was written from scratch after studying Kinefly's README and `tracker_edge.py`. It keeps Kinefly's annular-sector and angular-gradient approach and its angle conventions; it does not copy the Python code.

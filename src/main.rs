@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand};
-use rekke::{
+use rekkefly::{
     avi::VideoFormat,
     config::{Config, Overrides, SourceConfig, camera_source},
     engine::{Engine, StartOptions},
@@ -20,17 +20,17 @@ use std::{
 #[derive(Parser)]
 #[command(
     version,
-    about = "Track insect wings from cameras or video files.",
-    long_about = "Track insect wings from cameras or video files.\n\n\
+    about = "Rekkefly, the new Kinefly: track insect wings from cameras or video files.",
+    long_about = "Rekkefly, the new Kinefly: track insect wings from cameras or video files.\n\n\
         Run without arguments to open the first camera (or a sample video if none is connected).\n\
         Examples:\n  \
-        rekke                                   open the GUI\n  \
-        rekke recording.avi                     track a video file\n  \
-        rekke --device 1 --label arena-2        second camera, custom label\n  \
-        rekke --rigs rigs.toml                  every rig in a manifest, one window each\n  \
-        rekke --rigs rigs.toml --headless --record\n  \
-        rekke --list-cameras\n  \
-        rekke clip big.avi sample.avi --start 60 --duration 30",
+        rekkefly                                   open the GUI\n  \
+        rekkefly recording.avi                     track a video file\n  \
+        rekkefly --device 1 --label arena-2        second camera, custom label\n  \
+        rekkefly --rigs rigs.toml                  every rig in a manifest, one window each\n  \
+        rekkefly --rigs rigs.toml --headless --record\n  \
+        rekkefly --list-cameras\n  \
+        rekkefly clip big.avi sample.avi --start 60 --duration 30",
     args_conflicts_with_subcommands = true
 )]
 struct Args {
@@ -104,7 +104,7 @@ struct Args {
 enum Tool {
     /// Cut part of a video into a new, usually much smaller, AVI.
     ///
-    /// Reads AVI natively (including Rekke/Wingtrace recordings); other
+    /// Reads AVI natively (including Rekkefly/Wingtrace recordings); other
     /// formats need FFmpeg. Never overwrites an existing file.
     Clip {
         input: PathBuf,
@@ -158,7 +158,7 @@ impl From<FormatArg> for VideoFormat {
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("rekke: {error:#}");
+        eprintln!("rekkefly: {error:#}");
         std::process::exit(1);
     }
 }
@@ -179,10 +179,10 @@ fn run() -> Result<()> {
             every,
         }) => {
             ensure!((1..=100).contains(&quality), "--quality must be 1–100");
-            let summary = rekke::clip::clip(
+            let summary = rekkefly::clip::clip(
                 input,
                 output,
-                &rekke::clip::ClipOptions {
+                &rekkefly::clip::ClipOptions {
                     start,
                     duration,
                     format: format.into(),
@@ -208,12 +208,12 @@ fn run() -> Result<()> {
             quality,
             noise,
         }) => {
-            let options = rekke::synth::SceneOptions {
+            let options = rekkefly::synth::SceneOptions {
                 noise,
                 ..Default::default()
             };
             let summary =
-                rekke::clip::synthesize(output, seconds, fps, 640, 480, quality, options)?;
+                rekkefly::clip::synthesize(output, seconds, fps, 640, 480, quality, options)?;
             println!(
                 "Wrote {} synthetic frames ({:.1} MB) to {}",
                 summary.frames,
@@ -247,9 +247,9 @@ fn run() -> Result<()> {
         } else {
             manifest
         };
-        return rekke::rigs::launch(
+        return rekkefly::rigs::launch(
             manifest,
-            rekke::rigs::LaunchOptions {
+            rekkefly::rigs::LaunchOptions {
                 headless: args.headless,
                 record: args.record,
                 demo: args.demo,
@@ -258,11 +258,14 @@ fn run() -> Result<()> {
         );
     }
     if args.init {
-        let path = args.config.clone().unwrap_or_else(|| "rekke.toml".into());
+        let path = args
+            .config
+            .clone()
+            .unwrap_or_else(|| "rekkefly.toml".into());
         ensure!(!path.exists(), "Config already exists: {}", path.display());
         Config::default().save(&path)?;
         println!(
-            "Created {}. Run rekke --config {}",
+            "Created {}. Run rekkefly --config {}",
             path.display(),
             path.display()
         );
@@ -278,7 +281,7 @@ fn run() -> Result<()> {
     } else if args.benchmark {
         (default_config()?, None)
     } else {
-        let (path, lock) = rekke::installation::free_config(&default_config()?)?;
+        let (path, lock) = rekkefly::installation::free_config(&default_config()?)?;
         (path, Some(lock))
     };
     let saved = if args.config.is_none() && !config_path.exists() {
@@ -384,7 +387,7 @@ fn run() -> Result<()> {
             fallback: !args.supervised,
             degrade_output: !args.supervised,
         };
-        let result = rekke::gui::launch(rekke::gui::Launch {
+        let result = rekkefly::gui::launch(rekkefly::gui::Launch {
             saved,
             overrides,
             path: config_path,
@@ -439,11 +442,11 @@ fn default_config() -> Result<PathBuf> {
     config_path_for(
         &std::env::current_dir()?,
         std::env::current_exe().ok().as_deref(),
-        rekke::installation::user_directory().as_deref(),
+        rekkefly::installation::user_directory().as_deref(),
     )
 }
 fn config_path_for(cwd: &Path, exe: Option<&Path>, app_data: Option<&Path>) -> Result<PathBuf> {
-    rekke::installation::select(cwd, exe, app_data)
+    rekkefly::installation::select(cwd, exe, app_data)
 }
 
 #[cfg(test)]
@@ -457,7 +460,7 @@ mod tests {
     impl Scratch {
         fn new() -> Self {
             let p = std::env::temp_dir().join(format!(
-                "rekke-install-{}-{}",
+                "rekkefly-install-{}-{}",
                 std::process::id(),
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -475,26 +478,27 @@ mod tests {
     }
     #[test]
     fn cli_parses_videos_overrides_and_tools() {
-        let a = Args::try_parse_from(["rekke", "fly.avi", "--fast", "--label", "arena"]).unwrap();
+        let a =
+            Args::try_parse_from(["rekkefly", "fly.avi", "--fast", "--label", "arena"]).unwrap();
         assert_eq!(a.input, Some(PathBuf::from("fly.avi")));
         assert!(a.fast);
         assert_eq!(a.label.as_deref(), Some("arena"));
-        let a = Args::try_parse_from(["rekke", "--device", "1", "--zmq-port", "9900"]).unwrap();
+        let a = Args::try_parse_from(["rekkefly", "--device", "1", "--zmq-port", "9900"]).unwrap();
         assert_eq!(a.device.as_deref(), Some("1"));
         assert_eq!(a.zmq_port, Some(9900));
-        let a = Args::try_parse_from(["rekke", "clip", "in.avi", "out.avi", "--duration", "30"])
+        let a = Args::try_parse_from(["rekkefly", "clip", "in.avi", "out.avi", "--duration", "30"])
             .unwrap();
         assert!(matches!(a.command, Some(Tool::Clip { duration: Some(d), .. }) if d == 30.0));
-        assert!(Args::try_parse_from(["rekke", "--rigs", "r.toml", "--device", "1"]).is_err());
-        assert!(Args::try_parse_from(["rekke", "--device", "1", "--video", "a.avi"]).is_err());
-        let a = Args::try_parse_from(["rekke", "--rigs"]).unwrap();
+        assert!(Args::try_parse_from(["rekkefly", "--rigs", "r.toml", "--device", "1"]).is_err());
+        assert!(Args::try_parse_from(["rekkefly", "--device", "1", "--video", "a.avi"]).is_err());
+        let a = Args::try_parse_from(["rekkefly", "--rigs"]).unwrap();
         assert_eq!(a.rigs, Some(PathBuf::from("auto")));
     }
     #[test]
     fn isolated_mac_bundle_creates_a_writable_camera_config() {
         let t = Scratch::new();
         let cwd = t.0.join("cwd");
-        let exe = t.0.join("isolated/Rekke.app/Contents/MacOS/rekke");
+        let exe = t.0.join("isolated/Rekkefly.app/Contents/MacOS/rekkefly");
         let data = t.0.join("user-data");
         let path = config_path_for(&cwd, Some(&exe), Some(&data)).unwrap();
         assert_eq!(path, data.join("configs/camera-a.toml"));
@@ -516,7 +520,7 @@ mod tests {
     #[test]
     fn user_config_is_preserved_across_mac_bundle_launches() {
         let t = Scratch::new();
-        let exe = t.0.join("isolated/Rekke.app/Contents/MacOS/rekke");
+        let exe = t.0.join("isolated/Rekkefly.app/Contents/MacOS/rekkefly");
         let data = t.0.join("user-data");
         let path = config_path_for(&t.0, Some(&exe), Some(&data)).unwrap();
         let mut c = Config::load(&path).unwrap();
@@ -534,8 +538,8 @@ mod tests {
     #[test]
     fn portable_and_local_configs_keep_precedence_over_mac_fallback() {
         let t = Scratch::new();
-        let package = t.0.join("installed/Rekke");
-        let exe = package.join("rekke");
+        let package = t.0.join("installed/Rekkefly");
+        let exe = package.join("rekkefly");
         let bundled = package.join("configs/camera-a.toml");
         let data = t.0.join("user-data");
         Config::default().save(&bundled).unwrap();
@@ -543,7 +547,7 @@ mod tests {
             config_path_for(&t.0, Some(&exe), Some(&data)).unwrap(),
             bundled
         );
-        let local = t.0.join("rekke.toml");
+        let local = t.0.join("rekkefly.toml");
         Config::default().save(&local).unwrap();
         assert_eq!(
             config_path_for(&t.0, Some(&exe), Some(&data)).unwrap(),
@@ -554,10 +558,10 @@ mod tests {
     #[test]
     fn plain_cli_does_not_create_an_implicit_user_config() {
         let t = Scratch::new();
-        let exe = t.0.join("bin/rekke");
+        let exe = t.0.join("bin/rekkefly");
         let data = t.0.join("user-data");
         let path = config_path_for(&t.0, Some(&exe), Some(&data)).unwrap();
-        assert_eq!(path, t.0.join("rekke.toml"));
+        assert_eq!(path, t.0.join("rekkefly.toml"));
         assert!(!path.exists());
         assert!(!data.exists());
     }

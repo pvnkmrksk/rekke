@@ -348,14 +348,16 @@ impl PolarGrid {
         }
     }
     /// Median signed derivative across radial bands, after limiting contrast
-    /// and removing angular pulses narrower than `spike_radius` bins.
+    /// and removing angular pulses narrower than `spike_radius` bins. Also
+    /// returns the median filtered level above each band's background, which
+    /// shows where the broad wing shoulder is.
     fn consensus_gradient(
         &self,
         mut bands: Vec<Vec<f32>>,
         contrast_cap: f32,
         spike_radius: usize,
-    ) -> Vec<f32> {
-        let gradients: Vec<Vec<f32>> = bands
+    ) -> (Vec<f32>, Vec<f32>) {
+        let (gradients, levels): (Vec<Vec<f32>>, Vec<Vec<f32>>) = bands
             .iter_mut()
             .map(|p| {
                 // Empty bins beyond the image must not become the background
@@ -369,19 +371,22 @@ impl PolarGrid {
                 for value in p.iter_mut() {
                     *value = value.min(baseline + contrast_cap);
                 }
-                smooth_gradient(&remove_spikes(p, spike_radius))
+                let opened = remove_spikes(p, spike_radius);
+                let level = opened.iter().map(|v| (v - baseline).max(0.0)).collect();
+                (smooth_gradient(&opened), level)
             })
-            .collect();
+            .unzip();
         let count = gradients.len();
+        let across = |rows: &[Vec<f32>], i: usize| {
+            let mut values = [0.0; 8];
+            for (v, row) in values.iter_mut().zip(rows) {
+                *v = row[i];
+            }
+            median(&mut values[..count])
+        };
         (0..self.bins)
-            .map(|i| {
-                let mut values = [0.0; 8];
-                for (v, gradient) in values.iter_mut().zip(&gradients) {
-                    *v = gradient[i];
-                }
-                median(&mut values[..count])
-            })
-            .collect()
+            .map(|i| (across(&gradients, i), across(&levels, i)))
+            .unzip()
     }
 }
 pub struct Tracker {
@@ -516,10 +521,10 @@ impl Tracker {
                 } else {
                     0
                 };
-                let gradient = if s.method == Method::WingBlur {
+                let (gradient, level) = if s.method == Method::WingBlur {
                     grid.consensus_gradient(bands, s.contrast_cap, spike_radius)
                 } else {
-                    smooth_gradient(&profile)
+                    (smooth_gradient(&profile), Vec::new())
                 };
                 // A bin is measurable only if its whole filter footprint is
                 // inside the image (≥90% radial coverage).
@@ -561,8 +566,71 @@ impl Tracker {
                 {
                     candidates.push(i);
                 }
-                candidates
-                    .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));
+                if s.method == Method::WingBlur {
+                    // A wing edge borders a broad shoulder of blur; a leg or
+                    // line is narrow, even if as dark or as sharp. Rank edges
+                    // by the shoulder behind them, not by their steepness;
+                    // the gradient peak still gives the precise angle.
+                    let bin_deg = s.span_deg / (grid.bins - 1) as f32;
+                    let window = ((s.spike_width_deg * 4.0)
+                        .clamp(12.0, 45.0)
+                        .min(s.span_deg / 3.0)
+                        / bin_deg)
+                        .round()
+                        .max(2.0) as usize;
+                    let mean = |lo: usize, hi: usize| {
+                        let (sum, n) = (lo..hi.min(grid.bins))
+                            .filter(|&b| grid.coverage[b] >= 0.9)
+                            .fold((0.0, 0), |(s, n), b| (s + level[b], n + 1));
+                        if n > 0 { sum / n as f32 } else { 0.0 }
+                    };
+                    // Long windows on both sides: a narrow line, even a dark
+                    // or sharp one, has little blur behind it.
+                    let shoulder = |i: usize| {
+                        let after = mean(i + 1, i + 1 + window);
+                        let before = mean(i.saturating_sub(window), i);
+                        if gradient[i] > 0.0 {
+                            after - before
+                        } else {
+                            before - after
+                        }
+                    };
+                    // One candidate per edge: the steepest point of each
+                    // same-sign gradient lobe gives the angle.
+                    let lobe_end = |i: usize, step: isize| {
+                        let mut j = i as isize;
+                        while (0..grid.bins as isize).contains(&(j + step))
+                            && gradient[(j + step) as usize] * gradient[i] > 0.0
+                        {
+                            j += step;
+                        }
+                        j as usize
+                    };
+                    let mut peaks: Vec<usize> = Vec::new();
+                    for &i in &candidates {
+                        let (lo, hi) = (lobe_end(i, -1), lobe_end(i, 1));
+                        match peaks.iter_mut().find(|j| (lo..=hi).contains(*j)) {
+                            Some(j) if gradient[i].abs() > gradient[*j].abs() => *j = i,
+                            Some(_) => {}
+                            None => peaks.push(i),
+                        }
+                    }
+                    // Both must hold: a steep edge (not a wiggle near the
+                    // wing) and a broad shoulder behind it (not a line).
+                    let floor = 1e-3 * s.contrast_cap;
+                    let mut ranked: Vec<(usize, f32)> = peaks
+                        .iter()
+                        .map(|&i| (i, gradient[i].abs() * (shoulder(i).max(0.0) + floor)))
+                        .collect();
+                    ranked.sort_unstable_by(|(a, sa), (b, sb)| {
+                        sb.total_cmp(sa)
+                            .then(gradient[*b].abs().total_cmp(&gradient[*a].abs()))
+                    });
+                    candidates = ranked.into_iter().map(|(i, _)| i).collect();
+                } else {
+                    candidates
+                        .sort_unstable_by(|a, b| gradient[*b].abs().total_cmp(&gradient[*a].abs()));
+                }
                 let mut selected: Vec<usize> = Vec::new();
                 for i in candidates {
                     // Suppress a complete same-sign derivative lobe, not only its peak.

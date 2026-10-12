@@ -1,4 +1,4 @@
-use rekke::{
+use rekkefly::{
     config::Config, frame::GrayFrame, output::Publisher, tracker::Tracker,
     zmq_output::KineflyMessage,
 };

@@ -1,4 +1,4 @@
-# Validation — Rekke 0.6.0
+# Validation — Rekkefly 0.6.0
 
 This file records what was checked for this release, how, and what still needs checking. The GitHub workflow repeats the automated checks on Ubuntu, Windows, macOS Apple silicon and macOS Intel before any release is published.
 
@@ -8,12 +8,12 @@ This file records what was checked for this release, how, and what still needs c
 - **87 tests pass** with default features (82 without GUI/camera); 4 report-only tests are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
 - The Linux `.deb`, tarball and ZIP were built with `scripts/package.py`, and the `.deb` was installed and smoke-tested:
   - `--list-cameras` works with no camera present.
-  - The demo config and the bundled sample run headless (`/usr/share/rekke/samples/sample-fly.avi --fast`).
+  - The demo config and the bundled sample run headless (`/usr/share/rekkefly/samples/sample-fly.avi --fast`).
   - In a fresh home folder, a plain GUI launch seeds the user configs, finds no camera, falls back to the sample video and saves a screenshot.
-  - Plain `rekke --rigs --demo --headless` starts both seeded rigs from the user folder.
+  - Plain `rekkefly --rigs --demo --headless` starts both seeded rigs from the user folder.
 - **Rig launcher:** three rigs from one manifest (`label`, `device`, ports) ran headless with `--demo --record`. Each wrote 60/60 frames to its own MJPEG recording (about 1.7 MB per 60 frames at 640×480, against about 18 MB raw). A recording was then replayed natively to JSONL with `--fast --headless`.
 - **GUI:** screenshots of the main window, Settings, diagnostics and the no-camera banner were rendered under Xvfb and checked by eye (`docs/images`). Marker dragging is covered by the existing egui event tests.
-- **Independent code review** of the new code checked the AVI reader against FFmpeg-made files: Y800, bgr24, pal8, bgra, MJPEG 4:2:2, PNG, audio-first files, a 1.15 GB OpenDML file and an interrupted FFmpeg recording. It also checked that FFmpeg reads Rekke's raw, PNG and MJPEG files at odd sizes. It found five bugs, all fixed with regression tests:
+- **Independent code review** of the new code checked the AVI reader against FFmpeg-made files: Y800, bgr24, pal8, bgra, MJPEG 4:2:2, PNG, audio-first files, a 1.15 GB OpenDML file and an interrupted FFmpeg recording. It also checked that FFmpeg reads Rekkefly's raw, PNG and MJPEG files at odd sizes. It found five bugs, all fixed with regression tests:
   - dropping a video could later save an older camera choice;
   - GRAY camera modes were ranked first but could not be requested;
   - launcher-started rigs could lose outputs silently;
@@ -50,7 +50,7 @@ MJPEG encoding of a 640×480 grayscale frame at quality 90 takes about 2 ms on o
 
 ## Not yet verified
 
-- **Physical cameras.** No camera was attached during development. The Linux fix lists only `V4L2_CAP_VIDEO_CAPTURE` nodes, sorted by number, and tries them in order. It was checked against the nokhwa/v4l source and by unit tests of the selection logic, not on hardware. Please confirm `rekke --list-cameras` and `device = "auto"` on your rig.
+- **Physical cameras.** No camera was attached during development. The Linux fix lists only `V4L2_CAP_VIDEO_CAPTURE` nodes, sorted by number, and tries them in order. It was checked against the nokhwa/v4l source and by unit tests of the selection logic, not on hardware. Please confirm `rekkefly --list-cameras` and `device = "auto"` on your rig.
 - macOS and Windows camera capture, and the installers, are exercised only by CI smoke tests, which have no camera.
 - Wingbeat-frequency estimation and stopped-flight detection are not implemented.
 
