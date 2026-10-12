@@ -63,6 +63,16 @@ jobs:
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
+      - name: Native smoke (sample video, rig launcher, recording)
+        shell: bash
+        run: |
+          exe="${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }}"
+          "$exe" --version
+          "$exe" samples/sample-fly.avi --headless --fast --frames 100
+          mkdir -p smoke && cp configs/*.toml smoke/
+          "$exe" --rigs smoke/rigs.toml --demo --headless --frames 30 --record
+          ls smoke/recordings/*/video-0000.avi
+          "$exe" clip samples/sample-fly.avi smoke/clip.avi --duration 2 --format png
       - name: Package
         run: python scripts/package.py --platform ${{ matrix.platform }} --binary ${{ matrix.release_dir || 'target/release' }}/${{ matrix.binary }} --out dist
       - name: Ubuntu install and GUI smoke
@@ -71,7 +81,10 @@ jobs:
           sudo apt-get install -y ./dist/rekke_*_amd64.deb
           rekke --version
           rekke --config /usr/share/rekke/configs/demo.toml --headless --frames 10
+          rekke /usr/share/rekke/samples/sample-fly.avi --headless --fast --frames 50
           xvfb-run -a rekke --config /usr/share/rekke/configs/demo.toml --screenshot dist/preview-linux.png
+          # No camera on CI: a plain launch must fall back to the bundled sample.
+          mkdir -p empty && cd empty && xvfb-run -a rekke --screenshot ../dist/preview-no-camera.png
       - name: Windows installer and icon smoke
         if: runner.os == 'Windows'
         shell: pwsh
@@ -83,6 +96,8 @@ jobs:
           & $app --version
           & $app --config configs/demo.toml --headless --frames 10
           if ($LASTEXITCODE -ne 0) { throw 'Installed executable failed' }
+          & $app "$env:LOCALAPPDATA\Programs\Rekke\samples\sample-fly.avi" --headless --fast --frames 50
+          if ($LASTEXITCODE -ne 0) { throw 'Installed sample video failed' }
           Add-Type -AssemblyName System.Drawing
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($app)
           if ($null -eq $icon) { throw 'Executable icon missing' }

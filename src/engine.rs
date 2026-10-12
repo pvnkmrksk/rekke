@@ -148,7 +148,7 @@ impl Engine {
                 if let Err(e) = result {
                     shared.error = Some(format!("{e:#}"));
                     shared.message = "Acquisition stopped".into();
-                } else {
+                } else if shared.message != "End of video" {
                     shared.message = "Acquisition stopped".into();
                 }
             })?;
@@ -380,6 +380,9 @@ fn run(
                 }
             }
             let Some(raw) = source.next_frame(&stop)? else {
+                if !stop.load(Ordering::Relaxed) {
+                    state.lock().unwrap().message = "End of video".into();
+                }
                 break;
             };
             if stop.load(Ordering::Relaxed) {

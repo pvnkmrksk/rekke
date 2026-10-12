@@ -1,295 +1,447 @@
 # Rekke · ರೆಕ್ಕೆ
 
-<img src="assets/rekke-256.png" width="128" alt="Rekke wing icon">
+<img src="assets/rekke-256.png" width="112" align="right" alt="Rekke icon: an insect wing with its motion-blur stroke envelope">
 
-**Rekke** takes its name from the [Kannada word for wing, ರೆಕ್ಕೆ](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86).
+**Rekke** tracks the wings of a tethered insect from a camera or a video file and streams the angles to your experiment in real time. It is a single native app, inspired by [Kinefly](https://github.com/ssafarik/Kinefly), with no ROS, Python or OpenCV to install. The name is the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86).
 
-A native Rust app for tracking the wings of a tethered insect, inspired by [Kinefly](https://github.com/ssafarik/Kinefly). It uses annular sectors, angular intensity profiles averaged over the radius, and edge detection. It runs independently of ROS and OpenCV.
+![Rekke tracking both wings of a tethered fly](docs/images/main-window.png)
 
-Version 0.5.1 includes Kinefly Docker-compatible ZMQ PUB output, one-command multi-rig launch, automatic marker/config persistence, lossless video recording on a dedicated worker, and an optional broad-shoulder wing filter that removes thin bright pulses. It retains native USB/webcam capture, symmetric directly draggable annular sectors, body-frame transforms and saved-background subtraction in a compact Kinefly-style GUI. Head/abdomen tracking, signal plots, a synthetic camera and FFmpeg video/network inputs are also available. Mac releases use a single drag-installable app, a wing icon and a one-line app-specific quarantine workaround.
+- **Download, double-click, track.** Your camera opens. With no camera, a 30-second sample video plays so you can learn the app.
+- **Ignores legs and antennae.** The default detector follows the wing's motion-blur edge even when a leg or antenna enters the tracking region ([details](#ignore-legs-and-antennae)).
+- **Any number of rigs.** Each rig has its own camera, ports, label and settings. Start them all with one command from one TOML file.
+- **Cameras or video files.** Drop a video on the window, or analyse recordings offline as fast as your computer allows.
+- **Small recordings.** MJPEG by default, about 10× smaller than raw. Lossless PNG and raw are one setting away.
+- **Kinefly-compatible output.** ZMQ JSON on port 9871 works with existing Kinefly Docker subscribers. Full measurements are available over UDP or JSONL.
 
-## Install
+---
 
-Download a build from [GitHub Releases](https://github.com/pvnkmrksk/rekke/releases/latest).
+## Contents
 
-| Computer | Download | Installation |
+1. [Quick start](#quick-start)
+2. [Using the app](#using-the-app)
+3. [Video files](#video-files)
+4. [Several rigs at once](#several-rigs-at-once)
+5. [Ignore legs and antennae](#ignore-legs-and-antennae)
+6. [Recording video](#recording-video)
+7. [Receiving measurements](#receiving-measurements)
+8. [Configuration reference](#configuration-reference)
+9. [Command-line reference](#command-line-reference)
+10. [Troubleshooting](#troubleshooting)
+11. [Installing: details per system](#installing-details-per-system)
+12. [Building, testing and benchmarks](#building-testing-and-benchmarks)
+
+---
+
+## Quick start
+
+**1. Download** the installer for your computer from [Releases](https://github.com/pvnkmrksk/rekke/releases/latest):
+
+| Computer | Download | Install |
 | --- | --- | --- |
-| Mac Apple Silicon | `Rekke-0.5.1-macos-arm64.dmg` | Drag Rekke.app into Applications |
-| Mac Intel | `Rekke-0.5.1-macos-x64.dmg` | Drag Rekke.app into Applications |
-| Ubuntu 22.04+ x86-64 | `rekke_0.5.1_amd64.deb` | `sudo apt install ./rekke_0.5.1_amd64.deb` |
-| Windows 10/11 x64 | `Rekke-0.5.1-windows-x64-setup.exe` | Run the installer; installs for your user |
+| Mac, Apple silicon (M1 and later) | `Rekke-0.6.0-macos-arm64.dmg` | Open it and drag **Rekke** onto **Applications** |
+| Mac, Intel | `Rekke-0.6.0-macos-x64.dmg` | Open it and drag **Rekke** onto **Applications** |
+| Windows 10/11 | `Rekke-0.6.0-windows-x64-setup.exe` | Run it. No administrator rights needed |
+| Ubuntu 22.04 or newer | `rekke_0.6.0_amd64.deb` | `sudo apt install ./rekke_0.6.0_amd64.deb` |
 
-Portable ZIPs and a Linux tarball are available too. Run `rekke` (`rekke.exe` on Windows) from the extracted folder. No Python, ROS, OpenCV, FFmpeg or separate ZeroMQ runtime is needed for native webcam tracking. The optional live-plot helper needs Python/PyZMQ; video/network inputs use separately installed FFmpeg.
+On a Mac, the first launch may be blocked because the app is not notarized. See [Mac: first launch](#mac-first-launch).
 
-### Mac: normal drag-to-Applications installation
+**2. Open Rekke.** It uses the first camera it can open. Allow camera access if your system asks. With no camera, the bundled sample video plays and an amber banner says so. Click **Retry camera** after connecting one.
 
-Open the DMG, drag **Rekke.app** onto the **Applications** shortcut, eject the image, and open Rekke from Applications. The app has its own wing icon and contains its resources; you only copy the app. Allow camera access when macOS asks.
+**3. Place the markers** by dragging the dots:
 
-Settings, markers and saved backgrounds live under `~/Library/Application Support/Rekke/configs/`, so the installed app never needs to modify its bundle. The first camera uses `camera-a.toml`; `camera-b.toml` and `rigs.toml` are seeded alongside it. The app shows the active config path in Settings. Existing config files are preserved; a previous `~/Library/Application Support/Wingtrace/wingtrace.toml` and its referenced baseline are imported on first launch if no Rekke state exists. Explicit `--config` paths remain independent.
+| Dot | Put it on |
+| --- | --- |
+| Magenta / cyan | The head and the tail. Together they define the body axis |
+| Red / green (inner) | The left and right wing hinges |
+| Corner dots | The sector's angular limits and outer radius, in one drag |
+| Middle dots on an arc | Only the inner or outer radius |
+| White centre dot | Moves the whole setup |
 
-This free release has an ad-hoc Mac signature, with no paid Apple Developer ID signature or notarization. A DMG does not remove Gatekeeper's publisher warning. For a release whose origin you trust, the one-time shortcut is:
+The two wings mirror each other while you edit. Tick **Asymmetric** to edit them separately.
 
-```sh
-xattr -dr com.apple.quarantine "/Applications/Rekke.app"
-```
+**4. Read the angles.** The lower-left box shows the left and right wing angles and L−R in radians. The same values are published continuously on **ZMQ port 9871** and over UDP ([how to receive them](#receiving-measurements)).
 
-Then open the copied app normally. Change the path if you installed elsewhere. This clears quarantine only on that app; it does not turn off Gatekeeper globally or sign/notarize the app. Repeat for a new downloaded release if needed. The DMG's **Install help** includes the same instructions. [Apple's explanation](https://developer.apple.com/forums/thread/739357).
+Every change saves automatically to the rig's config file. Close the window and reopen it: everything is where you left it, including the saved background.
 
-Alternatively, try opening once and use **System Settings → Privacy & Security → Open Anyway**. macOS 15 and later removed the older right-click override; macOS 14 and earlier can use Finder **right-click → Open**. [Apple instructions](https://support.apple.com/en-au/102445), [macOS 15 change](https://developer.apple.com/news/?id=saqachfa). An alert specifically reporting malware/damage is a different issue; check the release rather than treating it as the ordinary publisher warning.
+---
 
-### Windows and Ubuntu
+## Using the app
 
-The Windows executable links its Visual C++ runtime statically, so no separate runtime installer is needed. The Windows installer adds Start-menu and desktop shortcuts, embeds the wing icon in the executable, and installs under `%LOCALAPPDATA%\Programs\Rekke`. User settings/backgrounds are in `%APPDATA%\Rekke\configs`. Uninstall removes program files and shortcuts while preserving user state. Windows builds are unsigned and may show SmartScreen; verify the release's origin before approving it.
+![Settings and signal diagnostics](docs/images/settings.png)
 
-The Ubuntu `.deb` installs `rekke` on PATH and adds a Science-menu launcher/icon. Runtime dependencies are installed by `apt`. User state is under `${XDG_CONFIG_HOME:-~/.config}/rekke/configs`. The x86-64 build targets Ubuntu 22.04's glibc and is intended for 22.04 and newer. Camera device access follows normal OS/driver permissions.
+**Toolbar**
 
-### Start a camera or several rigs
+| Control | What it does |
+| --- | --- |
+| **Save BG** | Saves the next frame as the background image. Capture an *empty* scene first |
+| **H A L R** | Turns tracking of the head, abdomen, left and right wing on or off |
+| **Asymmetric** | Edits each wing on its own instead of mirroring |
+| **Subtract** | Tracks the difference from the saved background |
+| **Invert** | For a bright insect on a dark background |
+| **Threshold L / R** | 0 reports the strongest edge, however faint. Raise it to reject noise. Applies live |
+| **Ignore legs** | Robust wing detector, on by default ([why](#ignore-legs-and-antennae)) |
+| **Record** | Starts and stops video recording ([formats](#recording-video)) |
+| **New window** | Opens another Rekke window for the next rig, with its own camera and ports |
+| **Settings** | Detector, precise geometry, camera, outputs, recording and sampling |
 
-Launch the app to open the first available camera. Edit camera/marker settings in the GUI; changes save automatically. To run all configured rigs from an installed build:
+**Angles.** Wing angles are 0 when the wing points straight out from the body axis and positive toward the head. Kinefly uses the same convention. Head and abdomen angles follow the body axis, with clockwise positive in the image. All transmitted angles are in radians; geometry settings are in degrees.
 
-```sh
-rekke --rigs
-rekke --rigs --headless --record
-```
+**Diagnostics.** In **Settings**, tick **Show signal diagnostics**. You get an 8-second plot of both wing angles and the selected sector's angular intensity profile. The profile is auto-scaled, and detected edges are marked with vertical lines (the brighter line is the reported one).
 
-On Mac use `/Applications/Rekke.app/Contents/MacOS/rekke` for that command. Configure the seeded camera files and `rigs.toml` once; each rig has its own device, background and output port. Close a single instance before starting that same config through the rig launcher. Explicit paths also work:
+**Saving.** Edits are written 300 ms after you stop dragging, and when you close the window. Writes are atomic, so a crash cannot corrupt the file, and comments in the file are kept. Only one window may use a config file at a time. If a second window is started without `--config`, it takes the next rig's config instead.
 
-```sh
-rekke --config /path/to/camera-a.toml
-rekke --rigs /path/to/rigs.toml
-```
+---
 
-## Build from source
+## Video files
 
-```sh
-git clone https://github.com/pvnkmrksk/rekke.git
-cd rekke
-```
-
-
-Install the current stable [Rust toolchain](https://rustup.rs/). Windows needs the MSVC C++ build tools and NASM (for example `choco install nasm`). macOS needs Xcode command-line tools; Intel macOS also needs NASM (`brew install nasm`). On Ubuntu 22.04 or newer:
-
-```sh
-sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev libx11-dev libxi-dev libxrandr-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libegl1-mesa-dev
-```
-
-Then, from this repository:
+**Open a video:** drag it onto the window, or run:
 
 ```sh
-cargo build --release --locked
-cargo run --release --locked -- --config configs/demo.toml
+rekke recording.avi            # play at the recorded speed
+rekke recording.avi --loop     # loop it
 ```
 
-For the same portable Windows release build used by CI (PowerShell):
+AVI files play natively, with no extra software. This covers Rekke and Wingtrace recordings (MJPEG, PNG, raw Y800) and most uncompressed 8/24/32-bit AVIs. Recordings cut short by a crash or power loss also play. Other formats such as MP4 and MOV need [FFmpeg](https://ffmpeg.org/download.html) installed. Videos of a different size are scaled to the configured size **without changing their aspect ratio**, because stretching the image would bias every angle.
 
-```powershell
-$env:RUSTFLAGS = '-C target-feature=+crt-static'
-cargo build --release --locked --target x86_64-pc-windows-msvc
-```
+A video opened like this applies **to this run only**. Your saved camera setup is untouched. **Settings → Camera / input** has **Back to saved source** and **Save as this config's source**.
 
-The Windows binary is `target/x86_64-pc-windows-msvc/release/rekke.exe`; the normal native build uses `target/release/rekke`. Native webcam capture requires no FFmpeg, Python, ROS, OpenCV, or separate ZeroMQ runtime. The `camera` feature uses Nokhwa (AVFoundation on macOS, Media Foundation on Windows, V4L2 on Linux). A processing-only headless build is also available:
+**Offline analysis** processes every frame as fast as possible and writes one JSON line per frame:
 
 ```sh
-cargo build --release --locked --no-default-features
-cargo build --release --locked --no-default-features --features camera
+rekke --config my-rig.toml recording.avi --fast --headless
 ```
 
-The GitHub release workflow builds and tests on native Ubuntu, Windows, Apple Silicon Mac and Intel Mac runners. Tagged releases publish the installers, portable packages and checksums only after every build passes. Ubuntu builds include an installed-executable/GUI smoke check; Windows builds verify the installer and embedded icon. These checks do not test physical cameras. Linux packages depend on system graphics libraries; they are not fully static binaries.
+Set `output.jsonl_path = "results.jsonl"` in `my-rig.toml` to choose the output file. At 640×480 this runs at several hundred frames per second, including MJPEG decoding (about 450 frames/s on the 4-core test machine).
 
-## Set up tracking
+**Cut a snippet, or shrink a raw recording**, with `rekke clip`. It never overwrites a file:
 
-The camera fills the window. A compact toolbar holds **Save BG**, tracking toggles **H / A / L / R**, **Asymmetric**, **Subtract**, **Invert**, **Start / Stop**, **Record**, **Save**, and **Settings**. Left/right threshold controls are always within reach. Live angles appear unobtrusively in the lower-left corner, with FPS, recording and output status along the bottom.
+```sh
+# 30 seconds starting 1 minute in, as small MJPEG
+rekke clip video-0003.avi snippet.avi --start 60 --duration 30
+# Convert a whole raw recording to lossless PNG frames (about half the size)
+rekke clip video-0000.avi video-0000-png.avi --format png
+# Keep every 2nd frame
+rekke clip big.avi half-rate.avi --every 2
+```
 
-1. Launch the app. Installed apps use the writable per-user config described above; portable CLI packages prefer local/adjacent configs. The default source is `device = "auto"`: the first camera returned by the OS. It tries the requested mode, then the closest supported native mode, resizing to configured coordinates when needed. Actual receive FPS is displayed. An explicitly selected index/path requires a supported exact mode.
-2. Drag the magenta head anchor and cyan tail anchor onto the insect to define its body axis. Moving either endpoint keeps the other fixed, recomputes their midpoint, and translates/rotates all four tracking regions into the new body frame. Radii, angular spans, and relative offsets stay unchanged. Drag the white midpoint dot to translate the whole setup. These calibration points remain available when head/abdomen tracking is off.
-3. Drag either red left or green right hinge dot onto its wing base. **Asymmetric is off by default:** the other wing mirrors the edit across the current head/tail axis, even after rotating the body. Both wings' handles are active at the same time: no region selection or edit mode is needed.
-4. Drag either outer corner to change its angular limit **and outer radius in one gesture**. Drag the middle dot on the inner or outer arc to change only that radius. Wing angles, spans and radii mirror to the opposite wing. Small dots enlarge on hover. Settings offers precise numeric editing with the same symmetry rules. Configuration angles run clockwise from image-right; sectors crossing zero are supported.
-5. Switch **L / R / H / A** off to remove that tracker's entire region, handles, measurement lines and readout. H/A regions start off; the body calibration anchors remain for wing measurements. Switching every tracker off hides all overlays. Disabled measurements are `null` in the output.
-6. The default **Strongest edge** detector uses threshold **0**, selecting the largest measurable absolute angular gradient, including very faint signals. It reports no edge for a flat profile, a below-threshold signal or insufficient ROI coverage. A small numerical floor prevents floating-point artifacts; it is well below a one-level 8-bit contrast in the tested geometry. Raising the L/R thresholds takes effect while running. Noise and illumination gradients can win at zero threshold; the detector does not infer wing identity.
-7. Marker geometry, body anchors, symmetry, detector settings and all other valid config edits are **automatically saved** after 300 ms idle, with the final pending edit flushed on normal close. Writes are atomic and performed by a separate worker. **Save** requests a write immediately through the same worker. Turn off `autosave` in Settings for manual saving. Tracking edits apply live; source, instance, output and background-path changes need **Settings → Restart acquisition**. Invalid edits show an error and leave the last valid file intact. Each explicit config is this instance's saved state; keep it writable and give each instance its own file.
+### The sample video
 
-Settings contains the detector, primary-edge rule, precise geometry, optional diagnostics, input source, output ports and sampling controls. Two or more `max_edges` allow both wing boundaries to be reported. **Strongest** is the default primary rule; toward-head and toward-tail selection remain available. The GUI and wire readouts both use radians.
+`samples/sample-fly.avi` is the 30-second clip that plays when no camera is available. It ships with every package. To use **your own footage** as the sample, see [samples/README.md](samples/README.md). It takes one command.
 
-Enable **Asymmetric** to move wing geometry and body anchors independently. Switching it off restores the other wing from the last wing you edited (Left until the first wing edit). The mode is saved as `tracking.asymmetric` in each instance's TOML; older configs without that field default to symmetric editing. Enabled flags and detector settings stay independent in either mode, and disabled regions retain their geometry so they are aligned when re-enabled. The body frame controls the overlay geometry; the camera image retains its orientation. Moves that collapse the body/wing axes or put an anchor outside the image are rejected; center translation stops at the image boundary without distorting the setup.
+---
 
-Head and abdomen can be enabled in the toolbar. Their default detector is an angular foreground centroid, not Kinefly's polar image registration or stabilization.
+## Several rigs at once
 
-## Faint blur and moving obstructions
+Each rig needs its own **camera**, its own **ports** and its own **config file**, which holds its markers, background and recordings. Rekke checks all three before starting anything, so two rigs can never fight over a camera or a port.
 
-Enable **Reject spikes** beside the live thresholds to switch both wings, or choose **Settings → Detector → Wing blur · experimental** per wing (TOML `method = "wing_blur"`) first limits contrast, then removes short bright pulses from each angular intensity profile using a grayscale morphological opening. It keeps a broad low shoulder while suppressing thin bright antenna/leg pulses, including intrusions that cross most of the radial range. It then ranks the median signed derivative across up to eight radial bands, reducing short radial obstructions as well. There is no temporal locking to a last angle, so a genuine fast change remains visible. The default remains ordinary strongest-edge detection.
+### Quick: one more window
 
-`spike_width_deg = 5.0` is the initial angular rejection width. Adjust **Reject pulses under** live to be wider than the nuisance pulses and narrower than the useful wing haze. Set it to `0.0` to use only radial consensus. `contrast_cap = 0.12` limits contrast above the local band baseline; the threshold still applies after filtering. Widths quantize to angular bins. With too few bins or a wing shoulder narrower than the filter, it can remove the wing too. Broad obstructions, overlapping features at the wing boundary, partial radial wing visibility and lighting/background motion can still confuse it. Features touching the sector boundary are less reliable.
+Click **New window**, or start Rekke a second time without arguments. The new window takes the next rig config: `camera-b.toml` uses camera 1 and ports 5502/9872. A third window creates `camera-c.toml` with camera 2 and ports 5503/9873, and so on.
 
-Synthetic regressions cover one-level faint shoulders and much brighter narrow pulses inside, outside and near the wing, backgrounds, radial intrusions, flat scenes and a scene containing only pulses. **This is a spatial heuristic, not validated anatomical recognition.** Real insect recordings are still needed to tune and validate it. Stopped-flight classification and wingbeat-frequency estimation remain future work.
+### Repeatable: every rig with one command
 
-## Background subtraction
-
-Capture an empty, still image with **Save BG**, then place the insect and enable **Subtract**. The app saves a grayscale PNG at `tracking.background_path` and computes absolute pixel differences against that reference. **Settings → Background → Load saved background** reuses it; restarting loads the last saved reference automatically. Saving replaces that PNG atomically; ordinary acquisition and exit never recapture or overwrite the baseline, so the animal cannot silently become part of your background. The reference must match the configured frame size. **Difference view** displays the foreground when subtraction is active.
-
-For the simulated camera, **Settings → Background → Use clean demo background** saves the empty scene. Capturing a normal demo frame saves the insect too, just as a real camera would.
-
-Missing or mismatched references produce an error. With subtraction off, the default analyzes a dark insect against a light image. **Invert** changes the analysis polarity for bright insects on dark backgrounds and inverts the preview. Camera movement and illumination changes require a fresh reference.
-
-## Multiple rigs with one command
-
-Edit each camera config once, mapping `source.device` to an OS camera index/path and assigning its own instance name, background path, UDP sender port and ZMQ publisher port. The included `configs/rigs.toml` lists the two camera configs. Add or disable `[[rigs]]` entries to set N:
+Describe your rigs once in `rigs.toml`:
 
 ```toml
 [[rigs]]
-config = "camera-a.toml"
-enabled = true
-record = false
+label = "left-arena"       # window title, logs, recording folders
+device = "0"               # first camera in `rekke --list-cameras`
+zmq_port = 9871
+udp_port = 5501
+udp_target = "127.0.0.1:5601"
 
 [[rigs]]
-config = "camera-b.toml"
-enabled = true
-record = false
+label = "right-arena"
+device = "/dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_ABC123-video-index0"
+zmq_port = 9872
+udp_port = 5502
+udp_target = "127.0.0.1:5602"
+record = true              # this rig records from the start
 ```
 
-From an extracted portable package, launch every enabled rig with:
+Then start them all:
 
 ```sh
-./rekke --rigs configs/rigs.toml
+rekke --rigs rigs.toml                     # one window per rig
+rekke --rigs rigs.toml --headless --record # no windows, record everything
+rekke --rigs rigs.toml --demo              # dry run with simulated flies
 ```
 
-On macOS the app's executable works too: `./Rekke.app/Contents/MacOS/rekke --rigs configs/rigs.toml`. **Launch All Rigs.command** (Mac), **Launch All Rigs.cmd** (Windows) and **launch-all-rigs.sh** (Linux) wrap this command. Each child gets an independent window, capture worker, config and port. Manifest paths resolve relative to the manifest. The launcher validates duplicate configs, names, camera selectors, backgrounds and sender ports before spawning anything. A failed rig stops the others with a clear error. Ctrl+C stops the set, lets accepted video frames finish and finalizes files; a child whose launcher disappears also stops. A driver that cannot return may require forced termination after ten seconds.
-
-```sh
-./rekke --rigs configs/rigs.toml --headless --record
-./rekke --rigs configs/rigs.toml --demo --headless --frames 300
+```text
+Started left-arena   PID 4121    camera 0 · ZMQ tcp://*:9871 · UDP 127.0.0.1:5501 → 127.0.0.1:5601 [.../left-arena.toml]
+Started right-arena  PID 4122    camera /dev/v4l/by-id/... · ZMQ tcp://*:9872 · UDP 127.0.0.1:5502 → 127.0.0.1:5602 [.../right-arena.toml]
+Press Ctrl+C to stop every rig.
 ```
 
-`--record` starts video for every enabled rig; an entry's `record = true` starts it for just that rig. Each instance can also use `recording.enabled = true` in its own config. `--demo` replaces sources in memory to check a set without cameras. In a GUI, subsequent autosaved edits also save that current demo source; use a copy of your config for demo calibration. You can still launch a single instance with `--config configs/camera-a.toml`.
+| Key | Meaning |
+| --- | --- |
+| `label` | Name in the window title, logs and recording folders |
+| `config` | The rig's own settings file. Default `<label>.toml` beside `rigs.toml`. It is **created on first launch** if missing |
+| `device` | Camera: `"auto"`, a number, a device path, or part of the camera's name (see below) |
+| `video` | Track a video file instead of a camera (path relative to `rigs.toml`) |
+| `zmq_port` | Kinefly-format ZMQ publisher port |
+| `udp_port` / `udp_target` | Local sending port and `IP:port` destination for full UDP measurements |
+| `record` | Start recording when the rig starts |
+| `enabled` | `false` skips the rig |
 
-| Setting | Rig A | Rig B |
+Values in `rigs.toml` apply to that launch. Everything else, such as markers, detector settings and the background, lives in the rig's config file and is saved there as you edit. **Ctrl+C** stops all rigs and finishes every recording cleanly. If one rig fails, the others are stopped and the error is printed.
+
+Installed apps keep a ready-made `rigs.toml` next to your configs, so plain `rekke --rigs` works:
+
+| System | Your configs | All-rigs shortcut |
 | --- | --- | --- |
-| Instance | `rig-a` | `rig-b` |
-| Camera | First available (`auto`) | `1` |
-| ZMQ PUB bind | `tcp://*:9871` | `tcp://*:9872` |
-| Sender UDP bind | `127.0.0.1:5501` | `127.0.0.1:5502` |
-| Receiver UDP destination | `127.0.0.1:5601` | `127.0.0.1:5602` |
-| Background | `rig-a.background.png` | `rig-b.background.png` |
+| Mac | `~/Library/Application Support/Rekke/configs/` | `/Applications/Rekke.app/Contents/MacOS/rekke --rigs` |
+| Windows | `%APPDATA%\Rekke\configs\` | Start menu → **Rekke - start all rigs** |
+| Ubuntu | `~/.config/rekke/configs/` | App menu → Rekke → **Start all rigs** |
 
-There is no singleton lock. The default app launch opens one camera. For a stable multi-camera rig, prefer explicit devices rather than relying on enumeration order; that order can change after reconnecting hardware. Separate cameras are usually required because drivers may not share a physical device. Backgrounds, video inputs and recordings resolve relative to each config. Existing backgrounds and automatically saved marker coordinates are restored on restart.
+### Choosing cameras
 
-## Receive measurements
+```sh
+rekke --list-cameras
+```
 
-### Drop-in Kinefly Docker ZMQ output
+```text
+Use the number (or the path/name) as source.device:
+  0: HD Pro Webcam C920 (/dev/video0)
+  1: USB 2.0 Camera (/dev/video2)
+```
 
-The supplied camera configs enable ZMQ PUB at **9871 / 9872**, matching the active [`ros_zmq_bridge.py`](https://github.com/pvnkmrksk/Kinefly_Docker/blob/main/ros_zmq_bridge.py). The app binds; existing SUB clients connect to `tcp://<camera-computer-IP>:9871` and subscribe to `b""`. It sends **one UTF-8 JSON frame**, with no topic prefix or multipart envelope:
+- **A number** is the camera's position in this list, starting at 0. On Linux, metadata-only device nodes are skipped. In the example above, `"1"` is the camera at `/dev/video2`.
+- **`"auto"`** uses the first camera that opens. Cameras already used by another rig or program are skipped.
+- **A path** such as `/dev/v4l/by-id/...` (Linux) stays the same even if cameras are re-plugged in another order. Use it for fixed rigs.
+- **Part of the name**, for example `"C920"`, also works. On Mac and Windows this is the most stable choice.
+
+---
+
+## Ignore legs and antennae
+
+![Classic detector pulled onto the legs (left) vs. the robust default (right)](docs/images/legs-classic-vs-robust.png)
+
+*Synthetic fly with its front legs reaching forward. White dashes: the true leading edge. Orange: the detected edge. **Left:** the classic strongest-edge detector locks onto the legs. **Right:** the robust default stays on the wing.*
+
+A beating wing appears as a faint, translucent **stroke envelope**, and its leading edge is what Rekke measures. Legs and antennae are thin, opaque and much darker, so the classic strongest-edge method readily picks them instead. The robust detector (TOML `method = "wing_blur"`, the default since 0.6) does three things:
+
+1. **Caps contrast** in each of up to 8 radial bands, so an opaque leg cannot outweigh a translucent wing.
+2. **Removes thin features.** It removes angular features narrower than `spike_width_deg` (default 5°) with a morphological opening, and a broad wing envelope passes through unchanged.
+3. **Takes the median across radial bands**, so something that crosses only part of the sector, as a leg or antenna usually does, is out-voted.
+
+Measured on synthetic flies with known angles (360 frames per wing, 640×480; `cargo test --release --test intrusions -- --ignored --nocapture`):
+
+| Scene | Classic: frames > 4° off | Robust: frames > 4° off | Robust: median error |
+| --- | --- | --- | --- |
+| Clean flight | 0 / 720 | 0 / 720 | 0.24° |
+| Legs kicking through the wings | 108 / 720 | 0 / 720 | 0.24° |
+| Front legs reaching forward | 720 / 720 | 0 / 720 | 0.21° |
+| Faint wings (6% contrast) with legs | 132 / 720 | 0 / 720 | 0.22° |
+| Legs 2.5× thicker | 720 / 720 | 0 / 720 | 0.21° |
+| Large stroke amplitude and turning | 614 / 720 | 0 / 720 | 0.21° |
+
+The same holds at 320×240 and 1280×960, with or without background subtraction, and for legs up to 7× thicker. The robust detector is also about twice as fast as its 0.5 version (see [benchmarks](#building-testing-and-benchmarks)).
+
+**Limits.** These are synthetic scenes. A broad object that covers most of the sector's radial range at the wing's edge can still win, for example the abdomen if the inner radius is too small. Very narrow wing images can be filtered away if `spike_width_deg` is too wide. Check new setups with **Show signal diagnostics**. To go back to the classic detector, untick **Ignore legs** or set `method = "edge"`.
+
+---
+
+## Recording video
+
+Press **Record**, start with `--record`, or set `record = true` for a rig. Each session gets its own folder under `recording.directory`:
+
+```text
+recordings/rig-a-1791769898523379000-63855/
+  video-0000.avi, video-0001.avi …   split at segment_mb (1 GiB) to stay within AVI limits
+  frames.jsonl                       exact receive time and camera sequence number of every frame
+  config.toml                        the settings used
+  background.png                     the saved background, if any
+```
+
+| `format` | Size at 640×480, 60 fps | Bit-exact | Plays in |
+| --- | --- | --- | --- |
+| `"mjpeg"` (default) | ≈ 1.5–3 MB/s (≈ 5–10 GB/hour) | No; quality 90 is visually lossless for tracking | Rekke, VLC, FFmpeg |
+| `"png"` | ≈ 8–10 MB/s | Yes | Rekke, FFmpeg |
+| `"raw"` | 18.4 MB/s (66 GB/hour) | Yes | Rekke, VLC, FFmpeg |
+
+Encoding runs on its own threads, in parallel only when frames queue up. The camera thread only hands over a reference to the frame. Rekke never silently drops a frame. If the disk cannot keep up, recording stops with a visible error and tracking continues. Recordings show the camera image without overlays, before subtraction or inversion. Set `quality` (1–100) for MJPEG. Shrink older raw recordings afterwards with [`rekke clip`](#video-files).
+
+---
+
+## Receiving measurements
+
+### Kinefly-compatible ZMQ
+
+Each rig binds a ZMQ PUB socket (default `tcp://*:9871`, rig B `9872`). Subscribe to `b""` and receive **one UTF-8 JSON frame** per camera frame, exactly as the [Kinefly Docker bridge](https://github.com/pvnkmrksk/Kinefly_Docker/blob/main/ros_zmq_bridge.py) sends it:
 
 ```json
 {"x":0.25,"y":-0.5,"z":0.0,"yaw":0.75,"pitch":0.0,"roll":0.0,"frame_number":77,"timestamp_unix":1700000000.125}
 ```
 
-Exactly as the bridge: `x` and `y` are the first detected left/right angles (`angles[0]`, strongest first), `yaw = x - y`, the three unused pose fields are zero, missing/disabled angles are **0.0**, `frame_number` is the source sequence, and `timestamp_unix` is host reception time in Unix seconds. Angles use radians, outward perpendicular to the head–tail midline as zero, and positive toward the head using Kinefly's handedness rule. A non-default primary selection affects the full measurement/UI, while this compatibility output continues using the first edge. Wire/angle conventions match; detector results need not equal the old algorithm frame for frame. This replaces the bridge; do not bind both programs to the same port.
-
-```toml
-[output]
-zmq_enabled = true
-zmq_bind = "tcp://*:9871"
-# Existing UDP controls remain independent:
-enabled = true
-bind = "127.0.0.1:5501"
-target = "127.0.0.1:5601"
-jsonl_path = ""
-```
-
-ZMQ runs on a separate bounded publisher worker, implemented in Rust. No external libzmq/ROS installation is required. PUB/SUB has startup subscription delay and does not acknowledge delivery. A full 256-message worker queue drops that message and increments the visible ZMQ queue-drop counter; a subscriber that stalls the send for 500 ms stops acquisition with an output error. These counters do not measure losses inside the network or before a subscription. Use the video/timestamp recording for a local record of acquired frames. Older TOMLs without `zmq_enabled` retain UDP-only behavior; enable it in Settings or TOML.
-
-```sh
-python3 examples/receive_zmq.py --port 9871
-```
-
-The example requires `pyzmq` on the receiving computer only. Your existing SUB receiver can stay unchanged.
-
-### Minimal live plot
-
-Run the single-file helper from the source folder (requires only PyZMQ):
+`x`/`y` are the left/right wing angles in radians, `yaw = x − y`, missing angles are `0.0`, `frame_number` is the source frame sequence and `timestamp_unix` is when the frame arrived. Rekke replaces the bridge, so don't run both on the same port. ZMQ PUB/SUB drops messages sent before a subscriber connects, and it never blocks tracking. A subscriber that stalls for 500 ms stops the run with an error.
 
 ```sh
 python3 -m pip install pyzmq
-python3 examples/live_plot.py --port 9871
+python3 examples/receive_zmq.py --port 9871
+python3 examples/live_plot.py --port 9871      # live plot at http://127.0.0.1:8765
 ```
 
-It opens `http://127.0.0.1:8765` with Left, Right and L−R in radians. Pause/Resume freezes the displayed 10-second history while acquisition continues. Scroll to zoom time, Shift+scroll to zoom angles, drag to pan, hover for exact values, and double-click or Reset view to restore the view. Zoom/pan pauses automatically. Space toggles pause/resume. For another computer use `--host CAMERA_IP`; for a second simultaneous plot use `--port 9872 --http-port 8766`. The plot is a separate helper and does not change tracking or publishing.
+### Full measurements over UDP or JSONL
 
+Every frame is also sent as one JSON datagram from `output.bind` to `output.target`. Start a receiver with `python3 examples/receive_udp.py --port 5601`. To write the same JSON to a file, one line per frame, set `output.jsonl_path`. The file is never overwritten.
 
-### Full measurements over UDP
+Fields (defined in `src/tracker.rs`): `schema_version`, `instance`, `sequence`, `timestamp_ns` (Unix time at arrival), `elapsed_ns`, `width`, `height`, `capture_fps`, `processing_us`, `background_subtracted`, `left_minus_right_rad`, `left_plus_right_rad`, plus for each of `left`, `right`, `head` and `abdomen`:
 
+- `enabled`, `angle_rad` (the reported edge), `image_angle_rad`
+- `angles_rad` and `gradients`: every detected edge, strongest first
+- `strength`, `peak_gradient` (strongest before the threshold), `coverage` (fraction of the sector inside the image), `intensity`, and `radius_px` (centroid only)
 
-Start the supplied receiver before the app:
+Missing or disabled angles are `null`, never zero or a stale value.
+
+---
+
+## Configuration reference
+
+Every rig has one TOML file. The shipped files in [`configs/`](configs) are commented line by line; this is a summary.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `instance` | `"rig-a"` | Label for the window, logs and recordings |
+| `autosave` | `true` | Save GUI edits automatically |
+| `preview_fps` | `40` | GUI refresh rate. Tracking always uses every frame |
+| `source.kind` | `"camera"` | `"camera"`, `"video"`, `"network"` (FFmpeg) or `"demo"` (simulated fly) |
+| `source.device` | `"auto"` | Camera selector ([choosing cameras](#choosing-cameras)) |
+| `source.path`, `repeat`, `realtime` | | Video file, loop, and play at recorded speed (`false` = as fast as possible) |
+| `source.width/height/fps` | `640/480/30` | Processing size and requested camera rate |
+| `head`, `tail` | | Body axis anchor points (pixels) |
+| `tracking.asymmetric` | `false` | Edit wings independently |
+| `tracking.dark_on_light` | `true` | Dark insect on a light background |
+| `tracking.subtract_background`, `background_path` | `false` | Track the difference from the saved background PNG |
+| `tracking.angle_bins`, `radial_samples` | `240`, `72` | Sampling resolution of each sector |
+| `tracking.<part>.method` | `"wing_blur"` (wings) | `"wing_blur"` robust, `"edge"` classic, `"centroid"` |
+| `tracking.<part>.start_deg`, `span_deg` | `135`/`130` (left) | Sector angles: image degrees, clockwise from image-right |
+| `tracking.<part>.inner_radius`, `outer_radius` | `55`, `185` | Sector radii (pixels) |
+| `tracking.<part>.threshold` | `0.0` | Minimum edge strength. 0 reports the strongest edge |
+| `tracking.<part>.max_edges`, `primary_edge` | `2`, `"strongest"` | Edges reported, and which one is the angle (`"toward_head"`, `"toward_tail"`) |
+| `tracking.<part>.spike_width_deg`, `contrast_cap` | `5.0`, `0.12` | Robust detector: thinnest feature kept, and contrast limit |
+| `output.zmq_enabled`, `zmq_bind` | `true`, `"tcp://*:9871"` | Kinefly-compatible publisher |
+| `output.enabled`, `bind`, `target` | `true`, `127.0.0.1:5501` → `:5601` | Full UDP measurements |
+| `output.jsonl_path` | `""` | Also write measurements to this file |
+| `recording.format`, `quality` | `"mjpeg"`, `90` | Video format and MJPEG quality |
+| `recording.directory`, `segment_mb`, `queue_frames` | `"recordings"`, `1024`, `32` | Where recordings go, file size, write buffer |
+| `recording.enabled` | `false` | Record from the start |
+
+Relative paths are relative to the config file. Edits that change the camera, outputs or label take effect after **Settings → Restart acquisition**. Everything else applies live.
+
+---
+
+## Command-line reference
+
+```text
+rekke                               open the GUI with the first free rig config
+rekke VIDEO [--loop] [--fast]       track a video file
+rekke --config FILE                 a specific rig config
+rekke --rigs [rigs.toml]            start every rig in a manifest
+rekke --list-cameras                show camera numbers, names and paths
+rekke clip IN OUT [--start S] [--duration S] [--format mjpeg|png|raw] [--quality Q] [--every N]
+
+Run-only overrides (never saved): --device SEL, --video FILE, --label NAME,
+  --zmq-port P, --udp-port P, --udp-target IP:PORT, --record, --demo
+Other: --headless, --frames N, --benchmark, --screenshot PNG, --init
+```
+
+Run `rekke --help` for the full text.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| **Linux: `auto` failed, but `0` worked** (Rekke 0.5) | Fixed in 0.6. Rekke now skips the metadata-only `/dev/video*` nodes that USB cameras create, and tries cameras in order. Run `rekke --list-cameras` to see the numbers |
+| **Linux: "Permission denied" for /dev/video0** | `sudo usermod -aG video $USER`, then log out and back in |
+| **"Cannot open camera … may be in use"** | Close the other program or Rekke window that uses that camera, or give this rig another `device` |
+| **"Outputs off: Bind output port …"** | Another program or rig uses that port, for example the old Kinefly bridge. Tracking keeps running in the window. Choose another port in Settings → Instance / output |
+| **"… is already open in another Rekke window"** | Each config can be open in one place at a time. Close the other window, or use `--config` with another file |
+| **The sample video plays instead of my camera** | No camera could be opened; the banner says why. Connect the camera and click **Retry camera** |
+| **A video won't open** | AVI plays natively. Other formats need FFmpeg on your PATH, or set `REKKE_FFMPEG=/path/to/ffmpeg` |
+| **The edge jumps to a leg** | Make sure **Ignore legs** is ticked (`method = "wing_blur"`). Increase `spike_width_deg` for thick legs. Check that the inner radius excludes the body |
+| **Recording stopped: "queue is full"** | The disk can't keep up. Use `format = "mjpeg"`, a lower resolution or frame rate, or a faster disk |
+
+---
+
+## Installing: details per system
+
+### Mac: first launch
+
+Rekke is free software without a paid Apple signature, so macOS may say it "cannot be opened". If you trust the download, run once in Terminal:
 
 ```sh
-python3 examples/receive_udp.py --port 5601
+xattr -dr com.apple.quarantine "/Applications/Rekke.app"
 ```
 
-One UTF-8 JSON datagram is sent per processed frame. `output.bind` is the sender's unique local port; `output.target` is the receiver's listening port. UDP sends to one receiver; the independent ZMQ server supports SUB clients. To receive on another computer, bind the sender to `0.0.0.0:5501` and set the destination to that computer's IP and listening port. UDP is chosen for low latency and easy standalone packaging; it does not guarantee delivery. `sequence` helps receivers detect gaps, although this first native-camera adapter counts received frames and cannot detect frames already lost inside a driver. `udp_dropped` counts only local WouldBlock failures, not network losses.
+This only clears the download flag on Rekke. It does not turn off Gatekeeper. Alternatively, try to open Rekke once, then use **System Settings → Privacy & Security → Open Anyway**. ([Apple's explanation](https://support.apple.com/en-au/102445).) Allow camera access when asked. A second window can be opened from the toolbar with **New window**.
 
-The schema is defined by `Measurement` and `PartState` in `src/tracker.rs`:
+Configs and backgrounds live in `~/Library/Application Support/Rekke/configs/`. Settings from an earlier Wingtrace install are imported on first launch.
 
-- `schema_version`, `instance`, `sequence`, `timestamp_ns`, `elapsed_ns`, image dimensions, measured receive FPS, and tracking time.
-- `left`, `right`, `head`, `abdomen`: `enabled`, `angle_rad`, `image_angle_rad`, detected `angles_rad` and signed `gradients`, `radius_px` for the centroid method, foreground `intensity`, primary `strength`, pre-threshold `peak_gradient`, and ROI `coverage`.
-- `left_minus_right_rad` and `left_plus_right_rad` using each selected primary angle.
-- `background_subtracted` records which preprocessing was actually used.
+### Windows
 
-Angles use radians on the wire and in the compact GUI readouts; geometric settings use degrees. Wing zero points outward perpendicular to the head–tail midline, and positive wing angles point toward the head, with handedness derived from the head/tail anchors. Head/abdomen zero follows the outward body axis, with positive rotation clockwise in image coordinates. These conventions are explicit but the protocol is not wire-compatible with Kinefly's ROS messages.
+The installer puts Rekke under `%LOCALAPPDATA%\Programs\Rekke`, with Start-menu and desktop shortcuts, plus **Rekke - start all rigs**. Your configs live in `%APPDATA%\Rekke\configs` and are kept on uninstall. The build is unsigned, so SmartScreen may ask for confirmation. You can drag a video file onto the Rekke shortcut to open it.
 
-Invalid/missing angles are `null`, not zero or the last good reading. Detected edges are ordered by gradient strength; `angle_rad` uses `primary_edge` and may correspond to another entry in that list. `strength` is a contrast score, not a calibrated probability. Low ROI coverage means you should move the sector within the image. Bins with less than 90% radial coverage are excluded from detection.
+### Ubuntu
 
-`timestamp_ns` is Unix time at frame reception. It is not a hardware exposure timestamp. `elapsed_ns` is monotonic process time. Video replay currently uses receive time and FFmpeg pacing, not original video presentation timestamps.
+`sudo apt install ./rekke_0.6.0_amd64.deb` puts `rekke` on your PATH and adds a menu entry with **Start all rigs** and **Open the sample video** actions. Configs live in `~/.config/rekke/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
 
-For a local recording, set `output.jsonl_path` to a new filename. Recordings contain the same JSON schema, one frame per line, and refuse to overwrite existing files. This records measurements, not camera video. JSONL writing uses a separate bounded worker. An overflow or disk failure stops acquisition with an error instead of silently losing measurements. ZMQ compatibility output is described above. JSONL and video have independent bounded writer workers.
+### Portable folders
 
-## Record camera video
+The ZIP and tarball contain `rekke`, `configs/`, `samples/`, `examples/` and launchers: **Launch Demo**, **Launch Sample Video**, **Launch Camera A/B** and **Launch All Rigs** (`.command` on Mac, `.cmd` on Windows, `.sh` on Linux). Portable configs are read from the folder itself.
 
-Press **Record / Stop REC** in the toolbar, set `recording.enabled = true`, or launch with:
+---
+
+## Building, testing and benchmarks
+
+Install [Rust](https://rustup.rs/) (stable). Windows also needs the MSVC build tools and NASM. Intel Macs need NASM (`brew install nasm`). On Ubuntu:
 
 ```sh
-./rekke --config configs/camera-a.toml --record
+sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev libx11-dev libxi-dev \
+  libxrandr-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libegl1-mesa-dev
 ```
-
-A dedicated bounded writer thread saves every accepted acquired frame as **lossless uncompressed 8-bit grayscale AVI (Y800)**, before subtraction/inversion/overlays. No FFmpeg, encoder or RGB conversion is needed for recording. Packed luma is written directly, avoiding palette/RGB conversion on replay. The same frame allocation is shared with the preview; the capture thread only queues an `Arc`. Files split at the configured size (default 1 GiB) to stay within classic AVI limits. The session directory contains `video-0000.avi`, subsequent segments, `frames.jsonl` with exact receive timestamps/source sequences and frame-to-segment mapping, a config snapshot, and a copy of the saved background if present. Session names are unique and files are never overwritten.
-
-```toml
-[recording]
-enabled = false
-directory = "recordings" # relative to this instance's TOML
-queue_frames = 32
-segment_mb = 1024
-```
-
-The GUI shows REC and the number written. Normal Stop/close and launcher shutdown drain accepted frames and finalize indexes. AVI playback uses configured nominal FPS; `frames.jsonl` preserves actual timing, including irregular input/replay cadence. Use VLC, FFmpeg or an AVI-compatible analysis tool; QuickTime may not play this grayscale AVI format. The recorded pixels are the app's grayscale/resized acquisition frames, not original compressed camera packets or full color.
-
-This minimizes compute at the cost of disk space: **640×480 at 60 fps ≈ 18.4 MB/s (66 GB/hour)**; 1920×1080 at 120 fps ≈ 249 MB/s. A finite queue cannot guarantee lossless recording on inadequate storage. A full queue or disk error **stops recording visibly**, keeps tracking running and preserves/finalizes already accepted frames where possible; headless runs return an error. There is no silent recorder frame dropping. The queue has a 256 MiB validation limit. Source/driver losses before frame reception remain outside the recorder's control. Abrupt power loss/forced kill can leave the final segment without its index; earlier completed segments remain readable. The new detector and real high-speed camera recording still need validation with your experimental footage.
-
-## Video, network, and future cameras
-
-`configs/video.toml` and `configs/network.toml` show FFmpeg-backed sources. Install `ffmpeg` on PATH, set `REKKE_FFMPEG` (or legacy `WINGTRACE_FFMPEG`) to its executable path, or put the executable beside Rekke. It is an optional separate dependency, not included in the supplied package. Respect the license of any FFmpeg build you redistribute.
-
-Video replay follows the file cadence (`-re`); network input follows incoming frames. Their config `fps` is nominal metadata, not a resampling instruction. Frames are scaled to the configured dimensions, which may change aspect ratio. An FFmpeg failure is surfaced to the app; a normal file end stops acquisition. Network input uses a five-second FFmpeg read timeout where the protocol supports it.
-
-Industrial USB cameras exposed as standard OS camera devices may already work. Vendor-only machine vision cameras, GenICam/GigE Vision, hardware timestamps, trigger control, exposure controls, and SDK-specific buffers still require a camera adapter. Implement `FrameSource` in `src/source.rs`; tracking and publishing do not depend on a particular camera SDK.
-
-## Performance and validation
 
 ```sh
-cargo test --locked
+git clone https://github.com/pvnkmrksk/rekke.git && cd rekke
+cargo run --release -- samples/sample-fly.avi --loop    # try it
+cargo test --locked                                     # 85 tests
 cargo clippy --locked --all-targets -- -D warnings
-./target/release/rekke --config configs/demo.toml --benchmark --frames 5000
-./target/release/rekke --config configs/demo.toml --headless --frames 1000
+cargo build --release --locked --no-default-features    # processing only, no GUI/camera
 ```
 
-The processing-only benchmark includes full grayscale foreground preparation and the enabled precomputed polar sampling grids (two wings by default). It excludes capture, decode, GUI, serialization, and networking; it is not the camera frame rate. See `VALIDATION.md` for the current measured benchmark; re-run it with your enabled regions and detector settings.
+**Benchmarks** measure processing only: foreground preparation and tracking, with capture, GUI and output excluded. The figures are for 640×480 with both wings at 240 × 72 samples, on a 4-core cloud VM:
 
-The processing thread acquires and tracks each frame; ZMQ, video/measurement writing and configuration autosave have separate workers. UDP sends remain nonblocking. The GUI receives only the latest preview at its configured rate; it does not queue stale display frames. Only changed sampling geometry rebuilds its cached bilinear grid; thresholds, detector options and enable toggles reuse it. CPU and allocation costs still scale with full image size and polar sample count. Stopping/restarting waits for a native camera read to return; a stalled driver can delay this while the GUI remains responsive. FFmpeg inputs can be interrupted by terminating their child process.
+```sh
+./target/release/rekke --config configs/demo.toml --benchmark --frames 5000
+```
 
-Tests verify known angles, strongest/toward-head selection, one-level faint signals, zero-threshold flat frames, sector-boundary peaks, radial obstruction rejection, live threshold/enabled updates, directly accessible handles, combined corner edits, wing symmetry about rotated body axes, head/tail rotation, whole-body translation, asymmetric editing and persistence, wraparound editing, clipped ROIs, background persistence/subtraction, configuration validation, centroid detection, sender conflicts and independent UDP streams. This implementation has not yet been validated against a real tethered-insect recording or a scientific high-speed camera.
+| Detector | 0.5.1 | 0.6.0 |
+| --- | --- | --- |
+| Robust (`wing_blur`, default) | ≈ 600 µs/frame | **≈ 305 µs/frame** (≈ 3,300 frames/s) |
+| Classic (`edge`) | ≈ 240 µs/frame | ≈ 235 µs/frame |
 
-This version reports per-frame kinematics and left/right angle differences. It does **not** yet estimate wingbeat frequency in Hz or stroke amplitude per beat. Resolving an actual fast wingbeat requires an appropriate camera sampling rate and exposure; a typical 30/60 fps webcam cannot reconstruct a 200 Hz beat. The demo's 8 Hz motion is deliberately visible at its 120 fps simulated rate.
+Sampling no longer copies or inverts the whole frame. Each sector is sampled once per frame from precomputed bilinear positions. These positions are rebuilt only when the geometry changes, not when you move a threshold.
 
-## Project layout
+**Regenerating assets:** `python3 scripts/icons.py` rasterizes `assets/rekke.svg` into every icon format. `rekke synth samples/sample-fly.avi --seconds 30 --fps 25 --quality 76 --noise 1.0` re-renders the synthetic sample. `REKKE_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` redraws the detector figure.
 
-`config.rs` handles TOML and validation; `geometry.rs` handles body transforms and symmetric edits; `source.rs` supplies grayscale frames; `tracker.rs` owns polar sampling and tracking; `engine.rs` handles the processing worker and background commands; `output.rs` handles publishing, `measurement_log.rs` writes full JSONL, `zmq_output.rs` handles compatible PUB output, `recording.rs` writes video, `persistence.rs` debounces state saves and `rigs.rs` launches a rig set; `gui.rs` owns the desktop UI. `scripts/package.py` builds portable packages, standard Mac app/DMGs, Ubuntu debs and Windows installers from native release binaries. `INSTALL.txt` supplies the short installation guide included in each package and at the root of the DMG.
+**Releases** are built and tested by GitHub Actions on Ubuntu, Windows and both Mac architectures. A `v*` tag publishes the installers after every platform passes. See [VALIDATION.md](VALIDATION.md) for what has and has not been verified.
 
-The implementation was written afresh after inspecting Kinefly's README and `nodes/tracker_edge.py`. It preserves the annular-sector/gradient approach, rather than copying the Python program. The [2015 installation notes](https://peterthomasweir.blogspot.com/2015/07/installation-notes-for-kinefly.html) were useful historical context; their ROS/Python dependency chain is not required here.
+### Project layout
+
+| File | Role |
+| --- | --- |
+| `src/camera.rs` | Camera listing and selection, mode negotiation, fast grayscale paths |
+| `src/source.rs` | Image sources: camera, native AVI, FFmpeg, simulated fly, sample discovery |
+| `src/avi.rs` | AVI reader and writer (MJPEG / PNG / Y800) |
+| `src/tracker.rs` | Polar sampling and the edge, robust and centroid detectors |
+| `src/synth.rs` | Synthetic tethered fly with ground truth |
+| `src/engine.rs` | Acquisition thread, background commands, fallback |
+| `src/recording.rs`, `clip.rs` | Video recording; cutting and converting videos |
+| `src/output.rs`, `zmq_output.rs`, `measurement_log.rs` | UDP, ZMQ and JSONL outputs |
+| `src/rigs.rs`, `lock.rs`, `installation.rs` | Rig manifests, one-window-per-config locks, per-user configs |
+| `src/config.rs`, `geometry.rs`, `persistence.rs` | Settings and validation, marker editing, autosave |
+| `src/gui.rs` | The desktop interface |
+
+Rekke was written from scratch after studying Kinefly's README and `tracker_edge.py`. It keeps Kinefly's annular-sector and angular-gradient approach and its angle conventions; it does not copy the Python code.

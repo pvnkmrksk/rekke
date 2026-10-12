@@ -299,3 +299,120 @@ fn robust_detector_matches_the_classic_one_on_a_clean_fly() {
         assert!(worst < 1.0, "{method:?} accuracy {worst}°");
     }
 }
+
+/// Regenerate the README figure:
+/// REKKE_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored
+#[test]
+#[ignore = "writes the README figure when REKKE_FIGURE is set"]
+fn figure_classic_versus_robust() {
+    let Some(out) = std::env::var_os("REKKE_FIGURE") else {
+        return;
+    };
+    let scene = Scene::new(
+        640,
+        480,
+        SceneOptions {
+            reaching_legs: true,
+            ..SceneOptions::default()
+        },
+    );
+    let t = 1.0;
+    let frame = scene.render(t, 30);
+    let truth = scene.truth(t);
+    let (x0, y0, w, h) = (40u32, 30u32, 560u32, 420u32);
+    let mut figure = image::RgbImage::from_pixel(w * 2 + 16, h, image::Rgb([255, 255, 255]));
+    for (panel, method) in [Method::Edge, Method::WingBlur].into_iter().enumerate() {
+        let mut config = Config::default();
+        scene.configure(&mut config);
+        config.tracking.left.method = method;
+        config.tracking.right.method = method;
+        let m = Tracker::new(&config, 640, 480)
+            .process(&frame, None, 0)
+            .unwrap();
+        let ox = panel as u32 * (w + 16);
+        for y in 0..h {
+            for x in 0..w {
+                let v = frame.pixels[((y + y0) * 640 + x + x0) as usize];
+                figure.put_pixel(ox + x, y, image::Rgb([v, v, v]));
+            }
+        }
+        let mut line = |a: rekke::config::Point,
+                        b: rekke::config::Point,
+                        color: [u8; 3],
+                        width: f32,
+                        dash: bool| {
+            let length = a.distance(b);
+            let steps = (length * 4.0) as usize;
+            for k in 0..=steps {
+                let f = k as f32 / steps as f32;
+                if dash && ((f * length / 9.0) as usize).is_multiple_of(2) {
+                    continue;
+                }
+                let (px, py) = (
+                    a.x + (b.x - a.x) * f - x0 as f32,
+                    a.y + (b.y - a.y) * f - y0 as f32,
+                );
+                let r = width * 0.5;
+                for dy in -(r.ceil() as i32)..=(r.ceil() as i32) {
+                    for dx in -(r.ceil() as i32)..=(r.ceil() as i32) {
+                        let (x, y) = (px + dx as f32, py + dy as f32);
+                        if (dx * dx + dy * dy) as f32 <= r * r + 0.5
+                            && x >= 0.0
+                            && y >= 0.0
+                            && x < w as f32
+                            && y < h as f32
+                        {
+                            figure.put_pixel(ox + x as u32, y as u32, image::Rgb(color));
+                        }
+                    }
+                }
+            }
+        };
+        let colors = [[247, 93, 99], [87, 216, 115]];
+        for (wing, sector) in [&config.tracking.left, &config.tracking.right]
+            .into_iter()
+            .enumerate()
+        {
+            let hinge = sector.hinge;
+            for a in [sector.start_deg, sector.start_deg + sector.span_deg] {
+                let a = a.to_radians();
+                line(
+                    hinge.at(sector.inner_radius, a),
+                    hinge.at(sector.outer_radius, a),
+                    colors[wing],
+                    1.0,
+                    false,
+                );
+            }
+            for k in 0..120 {
+                let a0 = (sector.start_deg + sector.span_deg * k as f32 / 120.0).to_radians();
+                let a1 = (sector.start_deg + sector.span_deg * (k + 1) as f32 / 120.0).to_radians();
+                for r in [sector.inner_radius, sector.outer_radius] {
+                    line(hinge.at(r, a0), hinge.at(r, a1), colors[wing], 1.0, false);
+                }
+            }
+            // Ground truth (dashed white) and the detector's primary edge.
+            let part = if wing == 0 { &m.left } else { &m.right };
+            let sense = if wing == 0 { 1.0 } else { -1.0 };
+            let origin = if wing == 0 { std::f32::consts::PI } else { 0.0 };
+            let true_image = origin + sense * truth.front[wing];
+            line(
+                hinge.at(sector.inner_radius, true_image),
+                hinge.at(sector.outer_radius + 12.0, true_image),
+                [255, 255, 255],
+                3.0,
+                true,
+            );
+            if let Some(a) = part.image_angle_rad {
+                line(
+                    hinge.at(sector.inner_radius, a),
+                    hinge.at(sector.outer_radius + 12.0, a),
+                    [255, 160, 40],
+                    3.0,
+                    false,
+                );
+            }
+        }
+    }
+    figure.save(out).unwrap();
+}

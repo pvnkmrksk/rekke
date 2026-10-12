@@ -131,6 +131,8 @@ pub struct Launch {
     pub path: PathBuf,
     pub options: StartOptions,
     pub screenshot: Option<PathBuf>,
+    /// Panels to open at start: "settings", "plots".
+    pub panels: Vec<String>,
     pub shutdown: Arc<AtomicBool>,
 }
 fn window_title(config: &Config) -> String {
@@ -162,6 +164,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
         path,
         options: start_options,
         screenshot,
+        panels,
         shutdown,
     } = launch;
     let config = overrides.apply(&saved);
@@ -209,8 +212,8 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
                 drag: None,
                 last_wing: 0,
                 show_difference: false,
-                show_settings: false,
-                show_diagnostics: false,
+                show_settings: panels.iter().any(|p| p == "settings"),
+                show_diagnostics: panels.iter().any(|p| p == "plots"),
                 dirty: false,
                 status: String::new(),
                 restart_pending: false,
@@ -1081,15 +1084,23 @@ impl App {
                     &snapshot.measurement.abdomen,
                 ][self.selected];
                 if state.profile.len() > 1 {
+                    // Auto-scale: faint wings change the profile by only a few percent.
+                    let lo = state.profile.iter().copied().fold(f32::INFINITY, f32::min);
+                    let hi = state
+                        .profile
+                        .iter()
+                        .copied()
+                        .fold(f32::NEG_INFINITY, f32::max);
+                    let range = (hi - lo).max(1e-4);
+                    let n = state.profile.len() - 1;
                     let points = state
                         .profile
                         .iter()
                         .enumerate()
                         .map(|(i, p)| {
                             Pos2::new(
-                                rect.min.x
-                                    + i as f32 / (state.profile.len() - 1) as f32 * rect.width(),
-                                rect.max.y - p * rect.height(),
+                                rect.min.x + i as f32 / n as f32 * rect.width(),
+                                rect.max.y - 4.0 - (p - lo) / range * (rect.height() - 8.0),
                             )
                         })
                         .collect();
@@ -1097,6 +1108,25 @@ impl App {
                         points,
                         Stroke::new(1.5_f32, COLORS[self.selected]),
                     ));
+                    // Mark detected edges; the primary edge is brighter.
+                    let s = self.config.sectors()[self.selected];
+                    for &a in &state.image_angles {
+                        let offset = crate::tracker::wrap_angle(a - s.start_deg.to_radians())
+                            .rem_euclid(std::f32::consts::TAU);
+                        let f = offset / s.span_deg.to_radians();
+                        if (0.0..=1.0).contains(&f) {
+                            let x = rect.min.x + f * rect.width();
+                            let primary =
+                                state.image_angle_rad.is_some_and(|p| (p - a).abs() < 1e-5);
+                            columns[1].painter().line_segment(
+                                [Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)],
+                                Stroke::new(
+                                    1.0_f32,
+                                    Color32::from_white_alpha(if primary { 200 } else { 70 }),
+                                ),
+                            );
+                        }
+                    }
                 }
                 columns[1].small(format!(
                     "Peak {:.5} · ROI coverage {:.0}%",
@@ -1179,6 +1209,8 @@ impl eframe::App for App {
                         "Live"
                     } else if running {
                         "Opening"
+                    } else if state.message == "End of video" {
+                        "End of video · press Start to replay"
                     } else {
                         "Stopped"
                     },
@@ -1212,7 +1244,9 @@ impl eframe::App for App {
                 if let Some(error) = &state.error {
                     ui.colored_label(COLORS[0], "Camera error")
                         .on_hover_text(error);
-                } else if state.message != "Live" && state.message != "Acquisition stopped" {
+                } else if !["Live", "Acquisition stopped", "End of video"]
+                    .contains(&state.message.as_str())
+                {
                     ui.small(&state.message);
                 }
                 if !self.status.is_empty() {

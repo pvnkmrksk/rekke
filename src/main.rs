@@ -94,6 +94,9 @@ struct Args {
     /// Capture the GUI to a PNG after two seconds, then exit.
     #[arg(long)]
     screenshot: Option<PathBuf>,
+    /// Open GUI panels at start (settings, plots); used for documentation.
+    #[arg(long, hide = true, value_delimiter = ',')]
+    show: Vec<String>,
     #[command(subcommand)]
     command: Option<Tool>,
 }
@@ -387,6 +390,7 @@ fn run() -> Result<()> {
             path: config_path,
             options,
             screenshot: args.screenshot,
+            panels: args.show.clone(),
             shutdown: stop,
         })
         .map_err(|e| anyhow::anyhow!("GUI: {e}"));

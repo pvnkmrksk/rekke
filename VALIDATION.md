@@ -1,30 +1,53 @@
-# Validation — Rekke 0.5.1
+# Validation — Rekke 0.6.0
 
-[Native release run 38199683516](https://github.com/pvnkmrksk/rekke/actions/runs/38199683516) passed on all four platforms, including formatting, Clippy, 57 default-feature tests and 54 processing-only tests, release compilation and packaging. Ubuntu's installed `.deb` passed the synthetic GUI smoke; Windows' installer and installed binary passed their smoke checks. The Windows package verifies that its executable does not import a separately installed MSVC runtime DLL. The exact GitHub-built Apple Silicon app was also mounted locally, its signature verified and version checked as 0.5.1. These are synthetic/software checks, not physical camera tests.
+This file records what was checked for this release, how, and what still needs checking. The GitHub workflow repeats the automated checks on Ubuntu, Windows, macOS Apple silicon and macOS Intel before any release is published.
 
-Before the Windows runtime packaging fix, Rekke 0.5.0 on macOS ARM64 passed **57 default-feature tests**, **54 processing-only tests**, formatting, and Clippy (`--all-targets -- -D warnings`). The upstream `block 0.1.6` future-compatibility notice remains.
+## Checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
 
-The [Build and release workflow](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml) runs formatting, Clippy with warnings denied, both default-feature and processing-only tests, and native release builds on Ubuntu 22.04 x64, Windows 2022 x64, macOS ARM64 and macOS Intel. All four builds must pass before the release publishes.
+- `cargo fmt --check` passes. `cargo clippy --all-targets -- -D warnings` passes with default features and with `--no-default-features`.
+- **85 tests pass** with default features (81 without GUI/camera); 4 report-only tests are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.
+- The Linux `.deb`, tarball and ZIP were built with `scripts/package.py`, and the `.deb` was installed and smoke-tested:
+  - `--list-cameras` works with no camera present.
+  - The demo config and the bundled sample run headless (`/usr/share/rekke/samples/sample-fly.avi --fast`).
+  - In a fresh home folder, a plain GUI launch seeds the user configs, finds no camera, falls back to the sample video and saves a screenshot.
+  - Plain `rekke --rigs --demo --headless` starts both seeded rigs from the user folder.
+- **Rig launcher:** three rigs from one manifest (`label`, `device`, ports) ran headless with `--demo --record`. Each wrote 60/60 frames to its own MJPEG recording (about 1.7 MB per 60 frames at 640×480, against about 18 MB raw). A recording was then replayed natively to JSONL with `--fast --headless`.
+- **GUI:** screenshots of the main window, Settings, diagnostics and the no-camera banner were rendered under Xvfb and checked by eye (`docs/images`). Marker dragging is covered by the existing egui event tests.
 
-The release adds regression tests for per-user installed configuration, preserving existing edits, migration of previous Mac marker/background state, and portable configuration precedence. Ubuntu CI installs the actual `.deb` and opens a synthetic GUI under Xvfb. Windows CI silently installs the actual NSIS installer, runs its installed executable and checks its associated icon. Mac packaging verifies the ad-hoc signature and disk image. These checks do not validate physical cameras or fresh-download Gatekeeper/SmartScreen dialogs.
+## Detector accuracy (synthetic ground truth)
 
-The processing/tracking implementation is retained from Wingtrace 0.4.0. The following measured integration results and benchmarks are from that version, before the branding and installer changes; they are not measurements of every platform.
+`tests/intrusions.rs` renders backlit tethered flies with translucent stroke envelopes, antennae and six segmented legs. In some scenes the legs kick through the wing sectors or reach forward in front of the leading edge. Each scene has a known leading-edge angle.
 
-# Tracking and recording validation — Wingtrace 0.4.0, 12 October 2026
+| Scene (360 frames × 2 wings, 640×480) | Classic `edge`: frames > 4° off | Robust `wing_blur`: frames > 4° off |
+| --- | --- | --- |
+| Clean flight | 0 | 0 (median 0.24°) |
+| Legs kicking | 108 / 720 | 0 |
+| Front legs reaching | 720 / 720 | 0 |
+| Faint wings + legs | 132 / 720 | 0 |
+| Legs 2.5× thicker | 720 / 720 | 0 |
+| Large amplitude and turning | 614 / 720 | 0 (worst 1.7°) |
 
-Tested on macOS ARM64 with Rust 1.99.0.
+The robust results hold at 320×240 and 1280×960, with and without background subtraction, and for legs up to 7× thicker. Fast regression tests run on every build: the default detector has zero frames off by more than 4° across every leg kick, and the classic detector is shown to fail on the same frames. A separate test checks that per-sample inversion and subtraction give the same profiles and angles as building a full foreground frame.
 
-- Release build, formatting and Clippy (`--all-targets -- -D warnings`) pass. All **54 tests** pass with default GUI/native-camera features; all **51 applicable tests** pass without those features. The upstream `block 0.1.6` dependency still emits a future-compatibility notice.
-- Geometry and GUI event regressions retain directly draggable handles, combined corner angle/radius edits, symmetric wing reflection about rotated body axes, whole-body translation, head/tail rotation, asymmetric editing, hidden disabled regions and independent instance state. A native v0.4 GUI screenshot was rendered and inspected with faint simulated wings, Reject spikes enabled, an active Stop REC control and live recording counts. Native mouse drags were not rerun; their behavior is covered by GUI event and geometry tests.
-- The new spatial filter removes short bright angular pulses within each radial band before computing a median signed derivative. Tests retain a one-level faint shoulder with much brighter thin intrusions inside, outside and near its boundary, reject a scene containing only pulses, preserve a softly blurred eight-level signal, and verify saved-background subtraction, radial obstructions and live width/threshold updates. Flat frames continue reporting no edge at threshold zero. **These synthetic tests do not establish anatomical discrimination on real insects.** Broad legs, overlapping boundaries, partial wing coverage and changing illumination can still defeat it.
-- The wing zero reference now matches Kinefly's outward projection from the head–tail midline, including asymmetric hinge heights. The handedness and strongest-first ordering match the bridge contract. Detector results are not expected to be identical to the old algorithm frame for frame.
-- Compatibility reference: [Kinefly_Docker commit da2ea94555c24e853b7c43c5bd0b5ff945f8a635](https://github.com/pvnkmrksk/Kinefly_Docker/tree/da2ea94555c24e853b7c43c5bd0b5ff945f8a635), specifically the active `process_ros_message` in `ros_zmq_bridge.py` and `tests/test_zmq_client.py`. A release integration check launched two rigs through `--rigs`, connected real PyZMQ SUB clients, and checked every received JSON against the original Python conversion function using matching full measurement records. Each message had exactly one UTF-8 frame and the eight expected fields, with matching angles, difference, zero fallback, frame number and Unix timestamp. Wildcard `tcp://*` binding is translated internally to IPv4 `0.0.0.0`, as required by the native Rust ZMQ implementation.
-- Those two release processes each produced **180 measurement rows and 180 recorded video frames**, with zero local UDP or ZMQ queue drops. PyZMQ received 164 and 161 messages in the final run: PUB/SUB's initial connection/subscription delay loses early messages and is not counted as a local queue drop. The repository's **unmodified receiver** separately received 81 messages from a 90-frame run on `tcp://localhost:9871`.
-- All AVI segments decoded without errors in FFmpeg 9.0.1, and ffprobe counts matched every recording timestamp row. A separate 30-frame patterned lossless-video replay verified **9,216,000 recorded pixels byte for byte** against acquisition input (SHA256 `4b68e66658ea6bf708a92f74ab40c90d4984a0136f7d245dcddffccd17e982e9`). Y800 packed luma avoids RGB-palette conversion and rounding. Unit regressions also verify odd-length chunk padding, index offsets, frame counts and segment rollover.
-- Sending SIGINT only to the rig launcher gracefully stopped both child processes; they finalized 85/85 and 86/86 accepted frames. A live engine test starts, stops and restarts recording without reopening capture, then verifies that accepted and written counts match on shutdown. A full-queue regression verifies an explicit error, bounded video memory and refusal to silently discard a frame. Recording Stop closes the queue immediately and the disk worker drains asynchronously; exit joins remaining writers. Storage failures or insufficient bandwidth cannot be made lossless by software alone.
-- Configuration persistence tests verify the last queued marker/body/filter state on normal close, immediate Save ordering with pending drags, and preservation of the previous valid file after invalid edits. Atomic replacement avoids partial TOML/PNG writes. The saved baseline reloads on restart and is never automatically recaptured on exit. Existing background-dimension, missing-reference and live-tracking tests pass.
-- Rig-manifest regressions check relative config resolution, independent ports/record flags, disabled rigs and rejection of duplicate configs, ZMQ ports and background files before child launch. All supplied TOML examples parse successfully.
-- Release processing-only benchmarks, 5,000 fixed frames at 640×480, two enabled wings, 240 angular bins × 72 radial samples: **126.5 µs/frame (7,906 processing frames/s)** with ordinary edges; **436.2 µs/frame (2,292 processing frames/s)** with both WingBlur filters and a 5-degree pulse width. These include grayscale foreground preparation and tracking, and exclude capture, decoding, GUI, recording, serialization and output. They are not a camera-FPS or end-to-end throughput guarantee. Geometry grids are reused for detector/threshold/toggle changes.
-- The Mac ZIP/DMG include the ad-hoc-signed app, CLI, multi-rig launchers, configs, receiver examples, third-party notices and installation guide. Packaging verifies the signature and disk-image checksum. README and the guide at the DMG root include the package-scoped `xattr -dr com.apple.quarantine` command. This is a trust-based local Gatekeeper bypass, not Developer ID signing or Apple notarization. Fresh-download Gatekeeper dialogs were not reproduced.
+**This is synthetic evidence, not anatomical validation.** Real recordings (different lighting, wing transparency, leg posture, focus and noise) are still needed. The user's own recording referenced during development was not available to this build, so `samples/sample-fly.avi` is synthetic. `samples/README.md` explains how to replace it with real footage.
 
-The GUI acquires the first OS-listed camera by default, with closest-mode fallback for automatic selection and resizing to configured coordinates. Physical camera acquisition was reported working by the user in the previous version but was not revalidated on hardware here. Real insect recordings, physical Windows/Linux cameras, industrial camera SDKs, stopped-flight classification and wingbeat-frequency estimation remain unvalidated or future work. The observations in this section predate the Rekke rename; platform installation checks are recorded above. Video recording saves grayscale acquisition frames at nominal configured AVI FPS; the sidecar preserves actual receive timing and sequences, including source/driver gaps that the application cannot prevent.
+## Performance
+
+Processing only, 640×480, two wings, 240 × 72 samples, 4-core cloud VM. 0.5.1 and 0.6.0 were built and run alternately:
+
+| Detector | 0.5.1 | 0.6.0 |
+| --- | --- | --- |
+| Robust `wing_blur` | 573–670 µs/frame | 295–325 µs/frame |
+| Classic `edge` | 230–256 µs/frame | 225–283 µs/frame (same within noise) |
+
+MJPEG encoding of a 640×480 grayscale frame at quality 90 takes about 2 ms on one core; the recorder spreads encoding across threads when frames queue up. Native MJPEG playback with tracking ran at about 450 frames/s.
+
+## Not yet verified
+
+- **Physical cameras.** No camera was attached during development. The Linux fix lists only `V4L2_CAP_VIDEO_CAPTURE` nodes, sorted by number, and tries them in order. It was checked against the nokhwa/v4l source and by unit tests of the selection logic, not on hardware. Please confirm `rekke --list-cameras` and `device = "auto"` on your rig.
+- macOS and Windows camera capture, and the installers, are exercised only by CI smoke tests, which have no camera.
+- Wingbeat-frequency estimation and stopped-flight detection are not implemented.
+
+## Earlier releases
+
+0.5.1 passed the native release workflow on all four platforms (run 38199683516), including installer and icon checks. Wingtrace 0.4.0 verified Kinefly-bridge ZMQ compatibility against `ros_zmq_bridge.py` with real PyZMQ subscribers, byte-exact raw AVI replay, and graceful multi-rig shutdown. Those protocol and recorder behaviours are unchanged in 0.6.0 except that MJPEG is now the default recording format.

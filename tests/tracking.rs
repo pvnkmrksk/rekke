@@ -417,3 +417,66 @@ fn asymmetric_hinge_angle_zero_uses_kinefly_body_axis_projection() {
     let m = Tracker::new(&c, 640, 480).process(&raw, None, 0).unwrap();
     assert!((m.right.angle_rad.unwrap() + m.right.image_angle_rad.unwrap()).abs() < 1e-5);
 }
+/// The tracker inverts and subtracts per sample instead of building a
+/// foreground frame. Results must match the explicit full-frame version.
+#[test]
+fn per_sample_inversion_and_subtraction_match_full_frame_foregrounds() {
+    let scene = rekke::synth::Scene::new(640, 480, Default::default());
+    let raw = scene.render(1.3, 4);
+    let background = scene.empty();
+    for method in [Method::Edge, Method::WingBlur, Method::Centroid] {
+        let mut c = Config::default();
+        scene.configure(&mut c);
+        for i in 0..4 {
+            c.sector_mut(i).enabled = true;
+            c.sector_mut(i).method = method;
+        }
+        let close = |a: &rekke::tracker::PartState, b: &rekke::tracker::PartState| {
+            assert_eq!(a.angle_rad.is_some(), b.angle_rad.is_some(), "{method:?}");
+            if let (Some(x), Some(y)) = (a.angle_rad, b.angle_rad) {
+                assert!((x - y).abs() < 1e-4, "{method:?}: {x} vs {y}");
+            }
+            for (p, q) in a.profile.iter().zip(&b.profile) {
+                assert!((p - q).abs() < 1e-4);
+            }
+            if let (Some(x), Some(y)) = (a.radius_px, b.radius_px) {
+                assert!((x - y).abs() < 1e-2);
+            }
+        };
+        // Dark-on-light inversion.
+        c.tracking.dark_on_light = true;
+        let a = Tracker::new(&c, 640, 480).process(&raw, None, 0).unwrap();
+        let inverted =
+            GrayFrame::new(640, 480, raw.pixels.iter().map(|p| 255 - p).collect(), 0, 0).unwrap();
+        c.tracking.dark_on_light = false;
+        let b = Tracker::new(&c, 640, 480)
+            .process(&inverted, None, 0)
+            .unwrap();
+        for (x, y) in [
+            (&a.left, &b.left),
+            (&a.right, &b.right),
+            (&a.head, &b.head),
+            (&a.abdomen, &b.abdomen),
+        ] {
+            close(x, y);
+        }
+        // Background subtraction.
+        c.tracking.subtract_background = true;
+        let a = Tracker::new(&c, 640, 480)
+            .process(&raw, Some(&background), 0)
+            .unwrap();
+        c.tracking.subtract_background = false;
+        let difference = raw.difference(&background).unwrap();
+        let b = Tracker::new(&c, 640, 480)
+            .process(&difference, None, 0)
+            .unwrap();
+        for (x, y) in [
+            (&a.left, &b.left),
+            (&a.right, &b.right),
+            (&a.head, &b.head),
+            (&a.abdomen, &b.abdomen),
+        ] {
+            close(x, y);
+        }
+    }
+}
