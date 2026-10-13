@@ -47,6 +47,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      - name: Check that the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['package']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME is on a commit whose Cargo.toml says $version. Tag the commit that sets the version."
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@v2
       - name: Linux system dependencies
         if: runner.os == 'Linux'

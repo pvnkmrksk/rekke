@@ -93,8 +93,11 @@ or build the site in WSL.
    `RELEASE_NOTES.md` (the release's notes), and merge to `main`. To try the
    installers first, start **Actions → Build and release → Run workflow** on
    `main` and download its artifacts.
-2. Tag the merge commit and push the tag:
-   `git tag -a v0.7.0 -m "Rekkefly 0.7.0" && git push origin v0.7.0`.
+2. Once that is merged, tag the merge commit and push the tag. Check first that
+   `main` has the new version, since a published release can't be changed:
+   `git fetch origin && git show origin/main:Cargo.toml | grep -m1 '^version'`,
+   then `git tag -a v0.7.0 -m "Rekkefly 0.7.0" origin/main && git push origin v0.7.0`.
+   A tag that doesn't match `Cargo.toml` stops the build at once.
 3. The build workflow (about 20 minutes) tests every platform, builds and
    smoke-tests the installers, then publishes them with `SHA256SUMS.txt`. Do
    not create the release by hand first.
