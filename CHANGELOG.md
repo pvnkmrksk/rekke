@@ -7,6 +7,10 @@ change behaviour; such changes are listed under **Changed**).
 
 ## [Unreleased]
 
+### Changed
+- Updated the native GUI to eframe/egui 0.36, retaining direct marker and sector
+  dragging. Shutdown and worker notifications remain responsive in hidden windows.
+
 ## [0.6.1] - 2026-10-13
 
 **Every ZeroMQ subscriber that worked with the Kinefly Docker bridge, Unity
@@ -27,8 +31,6 @@ included, now works with Rekkefly unchanged.**
   sync with the program.
 
 ### Changed
-- Updated the native GUI to eframe/egui 0.36, retaining direct marker and sector
-  dragging. Shutdown and worker notifications remain responsive in hidden windows.
 - Links point to the renamed repository, `pvnkmrksk/rekkefly`, and the website.
 - The website shows real footage instead of animations: the Bogong moth as
   filmed, with Rekkefly's tracking drawn on and its measurement of every frame,
