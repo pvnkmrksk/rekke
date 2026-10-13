@@ -28,7 +28,7 @@ body:
     attributes:
       label: Rekkefly version
       description: The output of `rekkefly --version`.
-      placeholder: rekkefly 0.6.0
+      placeholder: rekkefly 0.6.1
     validations:
       required: true
   - type: dropdown

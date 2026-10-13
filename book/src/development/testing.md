@@ -23,7 +23,7 @@ cargo test --locked --no-default-features
 | Geometry and marker editing | `tests/geometry.rs` |
 | Sources, video, fallback, subscriptions | `tests/sources.rs`, unit tests in `src/avi.rs` and `src/source.rs` |
 | Configs, run-only overrides, rigs | `tests/rigs.rs`, `tests/instances.rs`, `tests/persistence.rs` |
-| ZMQ compatibility | `tests/zmq.rs`: a ZMTP 3 subscriber (zmq.rs), a replayed ZMTP 2.0 NetMQ handshake, topic filtering and stalled subscribers; unit tests in `src/zmq_output.rs` check the message bytes against Python's `json.dumps` |
+| ZMQ compatibility | `tests/zmq.rs`: a ZMTP 3 subscriber (zmq.rs), a replayed ZMTP 2.0 NetMQ handshake, a ZMTP 1.0 (libzmq 2.x) subscriber, topic filtering and stalled subscribers; unit tests in `src/zmq_output.rs` check the message bytes against Python's `json.dumps` |
 | MCP server | `tests/mcp.rs` drives the real binary over stdio |
 | Documentation | `tests/docs.rs`: the CLI help, MCP tools and config keys documented here match the program |
 | GUI | egui event tests in `src/gui.rs` |

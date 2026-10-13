@@ -1,8 +1,17 @@
-# Validation — Rekkefly 0.6.0
+# Validation — Rekkefly 0.6.1
 
 This file records what was checked for this release, how, and what still needs checking. The GitHub workflow repeats the automated checks on Ubuntu, Windows, macOS Apple silicon and macOS Intel before any release is published.
 
-## Checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
+## 0.6.1: ZeroMQ subscribers
+
+- **The Unity failure was reproduced.** A NetMQ 4.0.0.1 subscriber (ZMTP 2.0) received 0 messages from Rekkefly 0.6.0 and 119 from a pyzmq (libzmq 4.3.5) publisher sending the same JSON.
+- **Real subscribers against a 0.6.1 release build** (`--demo --headless`, 3 s at 30 frames/s): NetMQ 4.0.0.1 received 89 messages, NetMQ 4.0.4.4 (ZMTP 3.0) 90, and pyzmq 90 when subscribed to everything or to `{"timestamp_unix"`, and 0 when subscribed to `nope`.
+- NetMQ 3.3.3.4 does not run on Linux. Its assembly contains only a ZMTP 2.0 implementation (a 12-byte greeting), the path NetMQ 4.0.0.1 exercised.
+- ZMTP 1.0 (libzmq 2.x) subscribers are covered by a byte-level test written from RFC 13, not by a real libzmq 2.x.
+- The message is byte-identical to the bridge's. The float format was checked against 22 values from Python's `json.dumps`.
+- A headless run with a subscriber still connected stops at once. CI checks this on Windows, where shutting a socket down does not wake a thread reading it.
+
+## 0.6.0: checked in development (Linux x86-64, Ubuntu 24.04, Rust 1.97)
 
 - `cargo fmt --check` passes. `cargo clippy --all-targets -- -D warnings` passes with default features and with `--no-default-features`.
 - **104 tests pass** with default features (99 without GUI/camera); 16 report-only tests (comparison tables, figures, throughput) are ignored by default. Code that does not depend on the camera library was also type-checked for Windows (`x86_64-pc-windows-gnu`) and macOS (`aarch64-apple-darwin`). The camera feature needs each platform's C toolchain, so CI builds it there.

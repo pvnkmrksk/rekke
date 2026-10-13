@@ -14,13 +14,13 @@ MAC
    Configs: ~/Library/Application Support/Rekkefly/configs/
 
 WINDOWS 10/11 (64-bit)
-Run Rekkefly-0.6.0-windows-x64-setup.exe. It installs for your user account
+Run Rekkefly-0.6.1-windows-x64-setup.exe. It installs for your user account
 (no administrator rights) and adds Start-menu and desktop shortcuts, including
 "Rekkefly - start all rigs". SmartScreen may ask you to confirm the unsigned app.
 Configs: %APPDATA%\Rekkefly\configs (kept when you uninstall).
 
 UBUNTU 22.04 OR NEWER (x86-64)
-    sudo apt install ./rekkefly_0.6.0_amd64.deb
+    sudo apt install ./rekkefly_0.6.1_amd64.deb
 Open Rekkefly from the app menu (right-click for "Start all rigs") or run: rekkefly
 Configs: ~/.config/rekkefly/configs
 

@@ -12,7 +12,7 @@ Find your symptom below. If it is not here, search the
 | --- | --- |
 | **Mac: "Rekkefly cannot be opened"** | The app is not notarized. Run `xattr -dr com.apple.quarantine "/Applications/Rekkefly.app"` once, or use **System Settings → Privacy & Security → Open Anyway** ([details](getting-started/install.md#mac)) |
 | **Windows: SmartScreen warning** | The installer is not code-signed. Choose **More info → Run anyway** |
-| **Windows portable folder: a launcher closes at once** (0.6.0) | The 0.6.0 portable launchers call `rekke.exe`. Run `rekkefly.exe` directly, or edit the `.cmd` file to say `rekkefly.exe`. Fixed in the next release; the installer is not affected |
+| **Windows portable folder: a launcher closes at once** (0.6.0) | The 0.6.0 portable launchers call `rekke.exe`. Run `rekkefly.exe` directly, or edit the `.cmd` file to say `rekkefly.exe`. Fixed in 0.6.1; the installer is not affected |
 | **Ubuntu: the `.deb` will not install** | Use `sudo apt install ./rekkefly_<version>_amd64.deb` (with `./`), so apt fetches the dependencies. Ubuntu 22.04 or newer is needed |
 | **"… is already open in another Rekkefly window"** | Each config can be open in one place at a time. Close the other window, or use `--config` with another file |
 
@@ -54,7 +54,7 @@ Find your symptom below. If it is not here, search the
 | --- | --- |
 | **"Outputs off: Bind output port …"** | Another program or rig uses that port, for example the old Kinefly bridge. Tracking continues in the window. Choose another port in **Settings → Instance / output** |
 | **My ZMQ subscriber receives nothing** | Subscribe to everything (`b""`), connect to the rig computer's address and port, and allow the port through its firewall. Messages sent before the subscriber connected are not delivered |
-| **Unity (NetMQ) receives nothing, while PlotJuggler or Python do** (0.6.0) | Rekkefly 0.6.0 spoke only ZMTP 3, and older NetMQ releases (such as 4.0.0.1, common in Unity projects) speak ZMTP 2.0, so the connection failed silently. Fixed in the next release, which negotiates like libzmq. Until then, update NetMQ to a current 4.0.x |
+| **Unity (NetMQ) receives nothing, while PlotJuggler or Python do** (0.6.0) | Rekkefly 0.6.0 spoke only ZMTP 3, and older NetMQ releases (3.x and 4.0.0.x, common in Unity projects) speak ZMTP 2.0, so the connection failed silently. Install 0.6.1 or newer, which negotiates like libzmq: the Unity build needs no change |
 | **My receiver misses messages** | ZMQ drops messages for a subscriber more than 1,000 behind, so tracking never waits. Read continuously, in a thread of its own if needed |
 | **UDP receiver gets nothing** | Check that `output.target` is the receiver's address and port, and that the receiver binds that port |
 

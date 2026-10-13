@@ -171,11 +171,12 @@ fn an_agent_can_configure_run_watch_and_stop_a_rig() {
         json!({"rig": "agent-run", "seconds": 1.0, "csv": csv}),
     );
     let frames = trial["frames"].as_u64().unwrap();
-    assert!(frames >= 20, "{trial}");
     // The simulated fly, like a camera, skips exposures when the computer
-    // falls behind (slow debug runners do); those gaps are reported. That
+    // falls behind (slow debug runners do); those gaps are reported. So a
+    // second of its 30 frames/s is the frames kept plus those skipped. That
     // no frame is lost on the way is tested in tests/sources.rs.
-    assert!(trial["skipped_frames"].is_u64(), "{trial}");
+    let skipped = trial["skipped_frames"].as_u64().unwrap();
+    assert!(frames > 0 && frames + skipped >= 20, "{trial}");
     assert_eq!(trial["angles_deg"]["left_minus_right"]["valid"], frames);
     let rows = std::fs::read_to_string(&csv).unwrap().lines().count() as u64;
     assert_eq!(rows, frames + 1, "a header and one row per frame");

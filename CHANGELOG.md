@@ -7,6 +7,11 @@ change behaviour; such changes are listed under **Changed**).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-13
+
+**Every ZeroMQ subscriber that worked with the Kinefly Docker bridge, Unity
+included, now works with Rekkefly unchanged.**
+
 ### Added
 - A website at <https://pvnkmrksk.github.io/rekkefly/>: an animated landing page
   that explains what Rekkefly measures, finds the right download for your
@@ -40,9 +45,10 @@ change behaviour; such changes are listed under **Changed**).
 - **Unity (NetMQ) received no ZMQ messages**, while PlotJuggler and Python did.
   Older NetMQ releases, such as 4.0.0.1 in many Unity projects, speak only the
   ZMTP 2.0 wire protocol, and the ZeroMQ library Rekkefly used spoke only
-  ZMTP 3. Rekkefly now has its own publisher that negotiates ZMTP 3.0 or 2.0 as
-  libzmq does, so every ZeroMQ library receives the messages. Tested with
-  NetMQ 4.0.0.1 and 4.0.4.4, pyzmq (libzmq 4.3.5) and zmq.rs.
+  ZMTP 3. Rekkefly now has its own publisher that negotiates ZMTP 3.0, 2.0 or
+  1.0 as libzmq does, so every subscriber that worked with the bridge receives
+  the messages, with no change to the subscriber. Tested with NetMQ 4.0.0.1 and
+  4.0.4.4, pyzmq (libzmq 4.3.5) and zmq.rs.
 - The ZMQ message is now byte for byte the Kinefly Docker bridge's: the same
   key order, spacing and number format (`{"timestamp_unix": …, "pitch": 0.0,
   …}`), so receivers that compare or parse text exactly see no difference.
@@ -107,7 +113,8 @@ versions were called Wingtrace.
 - Kinefly Docker-compatible ZMQ output, full UDP measurements, a multi-rig
   launcher, lossless grayscale recording, and a live plot.
 
-[Unreleased]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pvnkmrksk/rekkefly/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/pvnkmrksk/rekkefly/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/pvnkmrksk/rekkefly/releases/tag/v0.5.0
