@@ -56,4 +56,5 @@ AI AGENTS AND SCRIPTS
   (on Mac: /Applications/Rekkefly.app/Contents/MacOS/rekkefly mcp).
 - rekkefly track VIDEO --csv angles.csv tracks a whole video offline.
 
-Full guide: README.md, or https://github.com/pvnkmrksk/rekke
+Full guide: https://pvnkmrksk.github.io/rekkefly/docs/
+Source and issues: https://github.com/pvnkmrksk/rekkefly

@@ -12,3 +12,5 @@ __pycache__/
 /rekkefly.toml
 /wingtrace.toml
 .env
+/_site/
+/book/book/

@@ -1,0 +1,184 @@
+$ rekkefly --help
+Rekkefly, the new Kinefly: track insect wings from cameras or video files.
+
+Run without arguments to open the first camera (or a sample video if none is connected).
+Examples:
+  rekkefly                                   open the GUI
+  rekkefly recording.avi                     track a video file
+  rekkefly --device 1 --label arena-2        second camera, custom label
+  rekkefly --rigs rigs.toml                  every rig in a manifest, one window each
+  rekkefly --rigs rigs.toml --headless --record
+  rekkefly --list-cameras
+  rekkefly track recording.avi --csv angles.csv
+  rekkefly clip big.avi sample.avi --start 60 --duration 30
+  rekkefly mcp                               serve AI agents (Model Context Protocol)
+
+Usage: rekkefly [OPTIONS] [VIDEO]
+       rekkefly <COMMAND>
+
+Commands:
+  clip   Cut part of a video into a new, usually much smaller, AVI
+  track  Track a whole video as fast as possible and summarise the wing angles
+  mcp    Serve the Model Context Protocol on stdin/stdout, for AI agents and automation: cameras, configs, rigs, live angles, snapshots, videos
+  help   Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [VIDEO]
+          A video file to track (AVI natively; other formats need FFmpeg)
+
+Options:
+  -c, --config <CONFIG>
+          This instance's configuration (TOML). Edits in the GUI are saved here
+
+      --rigs [<RIGS>]
+          Launch every enabled rig in this manifest, each as its own process
+
+      --device <DEVICE>
+          Use this camera for this run: auto, a number from --list-cameras, a device path or part of the camera name. Not saved to the config
+
+      --video <FILE>
+          Track this video file for this run (same as the VIDEO argument)
+
+      --fast
+          With a video: process as fast as possible instead of at its frame rate
+
+      --loop
+          With a video: play it in a loop
+
+      --label <LABEL>
+          Window title, instance name and recording prefix for this run
+
+      --zmq-port <PORT>
+          Publish Kinefly-format ZMQ on this TCP port for this run
+
+      --udp-port <PORT>
+          Send full UDP measurements from this local port for this run
+
+      --udp-target <IP:PORT>
+          Send full UDP measurements to this IP:port for this run
+
+      --record
+          Record video to this instance's recording directory
+
+      --init
+          Create a sample configuration at --config and exit (never overwrites)
+
+      --headless
+          Run acquisition and output without a GUI
+
+      --frames <FRAMES>
+          Stop after this many processed frames
+
+      --list-cameras
+          List cameras with the numbers to use for `device`, then exit
+
+      --demo
+          Use the simulated fly instead of the camera for this run
+
+      --benchmark
+          Benchmark processing of a fixed synthetic frame; does not acquire a camera
+
+      --json
+          Print machine-readable JSON (with --list-cameras, --benchmark, --headless)
+
+      --screenshot <SCREENSHOT>
+          Capture the GUI to a PNG after two seconds, then exit
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+$ rekkefly track --help
+Track a whole video as fast as possible and summarise the wing angles.
+
+Without --config the video's own markers are used (a .toml beside it, or the Bogong moth example's), else the defaults.
+
+Usage: rekkefly track [OPTIONS] <VIDEO>
+
+Arguments:
+  <VIDEO>
+          
+
+Options:
+      --config <CONFIG>
+          Markers and detector settings to use (never written)
+
+      --method <METHOD>
+          Override the wing detector for both wings
+
+          Possible values:
+          - robust:  Ignores legs and antennae (default)
+          - classic: Kinefly's strongest edge
+
+      --csv <CSV>
+          Write per-frame angles (degrees) and tracking time here
+
+      --jsonl <JSONL>
+          Write every full measurement as JSON lines here
+
+      --frames <FRAMES>
+          Stop after this many frames
+
+      --json
+          Print the summary as JSON
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+$ rekkefly clip --help
+Cut part of a video into a new, usually much smaller, AVI.
+
+Reads AVI natively (including Rekkefly/Wingtrace recordings); other formats need FFmpeg. Never overwrites an existing file.
+
+Usage: rekkefly clip [OPTIONS] <INPUT> <OUTPUT>
+
+Arguments:
+  <INPUT>
+          
+
+  <OUTPUT>
+          
+
+Options:
+      --start <START>
+          Seconds to skip from the start
+          
+          [default: 0]
+
+      --duration <DURATION>
+          Seconds to keep (default: until the end)
+
+      --format <FORMAT>
+          mjpeg (small), png (lossless) or raw (lossless, large)
+          
+          [default: mjpeg]
+          [possible values: mjpeg, png, raw]
+
+      --quality <QUALITY>
+          MJPEG quality 1–100
+          
+          [default: 90]
+
+      --every <EVERY>
+          Keep every Nth frame
+          
+          [default: 1]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+$ rekkefly mcp --help
+Serve the Model Context Protocol on stdin/stdout, for AI agents and automation: cameras, configs, rigs, live angles, snapshots, videos.
+
+Add it to an MCP client, for example:  claude mcp add rekkefly -- rekkefly mcp
+
+Usage: rekkefly mcp [OPTIONS]
+
+Options:
+      --config-dir <CONFIG_DIR>
+          Folder of rig configs (default: the folder Rekkefly itself uses)
+
+  -h, --help
+          Print help (see a summary with '-h')

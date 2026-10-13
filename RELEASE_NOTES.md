@@ -1,4 +1,4 @@
-**Rekkefly is the new Kinefly.** The name is ರೆಕ್ಕೆ (*rekke*, Kannada for wing) + fly, rooted in [Kinefly](https://github.com/ssafarik/Kinefly) and [Kinefly Docker](https://github.com/pvnkmrksk/Kinefly_Docker). It tracks the wings of tethered insects from cameras or video files, publishes Kinefly-compatible ZMQ, and needs no ROS, Python, OpenCV or Docker.
+**Rekkefly is the new Kinefly.** The name is ರೆಕ್ಕೆ (*rekke*, Kannada for wing) + fly, rooted in [Kinefly](https://github.com/ssafarik/Kinefly) and [Kinefly Docker](https://github.com/pvnkmrksk/Kinefly_Docker). It tracks the wings of tethered insects from cameras or video files, publishes Kinefly-compatible ZMQ, and needs no ROS, Python, OpenCV or Docker. Documentation: https://pvnkmrksk.github.io/rekkefly/docs/
 
 ## 0.6.0: Rekkefly. Double-click and track, many rigs, no L − R spikes from legs, ready for agents
 

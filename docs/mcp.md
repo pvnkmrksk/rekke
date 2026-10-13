@@ -121,4 +121,4 @@ rekkefly --benchmark --json
 ```
 
 Live measurements stream over ZMQ (Kinefly format) and UDP (full JSON) while
-any rig runs; see the README's "Receiving measurements".
+any rig runs; see [Receiving measurements](https://pvnkmrksk.github.io/rekkefly/docs/guide/outputs.html).
