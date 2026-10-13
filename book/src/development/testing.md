@@ -8,7 +8,7 @@ without the GUI and camera features, and checks formatting and lints.
 | --- | --- | --- |
 | `ci.yml` | Pull requests and pushes that change code | Formatting, lints, tests on Linux, Windows and macOS |
 | `pages.yml` | Every pull request and push to main | Builds the website, checks every link, publishes it from main |
-| `build.yml` | `v*` tags, manual runs, pull requests that change packaging | Release builds, installers and smoke tests on Ubuntu, Windows and both Mac architectures; a tag publishes the release |
+| `build.yml` | `v*` tags, manual runs, pull requests that change the packaging scripts, icons or workflow | Release builds, installers and smoke tests on Ubuntu, Windows and both Mac architectures; a tag publishes the release |
 
 ```sh
 cargo test --locked                      # everything fast, with the GUI and cameras

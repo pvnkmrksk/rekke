@@ -2,8 +2,8 @@ name: Build and release
 # Release builds, installers and smoke tests on Ubuntu, Windows and both Mac
 # architectures: about 20 minutes. They run for release tags (v*, which also
 # publish the release), when started by hand (Actions → Build and release →
-# Run workflow), and for pull requests that change the packaging. Everyday
-# changes get the fast checks in ci.yml.
+# Run workflow), and for pull requests that change the packaging itself.
+# Everything else, dependency updates included, gets the fast checks in ci.yml.
 on:
   workflow_dispatch:
   push:
@@ -16,12 +16,7 @@ on:
       - "scripts/windows-installer.nsi"
       - "assets/**"
       - "build.rs"
-      - "Cargo.toml"
-      - "Cargo.lock"
       - "INSTALL.txt"
-      - "configs/**"
-      - "samples/**"
-      - "examples/**"
 permissions:
   contents: read
 jobs:
