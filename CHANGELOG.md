@@ -7,6 +7,10 @@ change behaviour; such changes are listed under **Changed**).
 
 ## [Unreleased]
 
+### Changed
+- Updated the native GUI to eframe/egui 0.36, retaining direct marker and sector
+  dragging. Shutdown and worker notifications remain responsive in hidden windows.
+
 ## [0.6.1] - 2026-10-13
 
 **Every ZeroMQ subscriber that worked with the Kinefly Docker bridge, Unity
