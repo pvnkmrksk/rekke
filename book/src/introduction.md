@@ -3,12 +3,17 @@
 <p class="lede"><strong>Rekkefly is the new Kinefly.</strong> It tracks the wings of a tethered insect (a fly, bee or moth) from a camera or a video file. It streams each wing's angle and <strong>L − R</strong>, the steering signal, to your closed-loop experiment in real time. It is one small native program for macOS, Windows and Linux, with no ROS, Python, OpenCV or Docker to install.</p>
 
 <div class="hero-media">
-<video src="media/bogong-moth-tracking.mp4" poster="media/bogong-moth-tracking.jpg" autoplay muted loop playsinline aria-label="Rekkefly tracking a real tethered Bogong moth, with the debug traces open"></video>
+<video poster="media/moth-tracking.jpg" autoplay muted loop playsinline aria-label="Real footage of a tethered Bogong moth with Rekkefly's wing sectors and reported leading edges drawn on top">
+<source src="media/moth-tracking.mp4" type="video/mp4">
+<source src="media/moth-tracking.webm" type="video/webm">
+</video>
 </div>
 
-*Rekkefly tracking a real tethered Bogong moth, the example that ships with every
-download. The lower panels are the debug traces: the left wing, the right wing and
-L − R over 8 s, and one wing's angular profile with legs and antennae removed.*
+*A real tethered Bogong moth, the example that ships with every download,
+exactly as filmed at 30 fps. Drawn on top: the body axis, each wing's sector
+around its hinge, and the leading edge Rekkefly reports (bold) with the other
+edge it found (thin). The window, with its debug traces, is shown in
+[The window](guide/app.md).*
 
 ## What it does
 

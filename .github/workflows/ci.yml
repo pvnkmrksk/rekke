@@ -1,0 +1,91 @@
+name: CI
+# Fast checks for every pull request and push to main: formatting, lints and
+# tests. Changes to the website or docs alone skip this (pages.yml builds and
+# checks those). Installers are built only for releases: see build.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**"
+      - "!site/**"
+      - "!book/**"
+      - "!docs/**"
+      - "!**.md"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/workflows/pages.yml"
+      - "!.github/dependabot.yml"
+      - "!.editorconfig"
+      - "!CITATION.cff"
+      - "!LICENSE"
+      # tests/docs.rs checks these against the program.
+      - "book/src/reference/**"
+      - "docs/mcp.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**"
+      - "!site/**"
+      - "!book/**"
+      - "!docs/**"
+      - "!**.md"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/workflows/pages.yml"
+      - "!.github/dependabot.yml"
+      - "!.editorconfig"
+      - "!CITATION.cff"
+      - "!LICENSE"
+      # tests/docs.rs checks these against the program.
+      - "book/src/reference/**"
+      - "docs/mcp.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+  # No debug info: faster builds and smaller caches.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+jobs:
+  lint:
+    name: Format and lints
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: System dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config nasm clang libclang-dev libv4l-dev libx11-dev libxi-dev libxrandr-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libegl1-mesa-dev
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config nasm clang libclang-dev libv4l-dev libx11-dev libxi-dev libxrandr-dev libxcursor-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libegl1-mesa-dev
+      - name: Windows NASM
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --yes --no-progress
+          "$env:ProgramFiles\NASM" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - run: cargo test --locked
+      - name: Processing only, without the GUI and cameras
+        if: runner.os == 'Linux'
+        run: cargo test --locked --no-default-features

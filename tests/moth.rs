@@ -674,3 +674,106 @@ fn throughput_table() {
         );
     }
 }
+/// The website's real-footage videos and the angles shown beside them, made
+/// from the raw frames (never inverted) with the tracking drawn on top:
+/// `moth-tracking` (Rekkefly on the clean footage) and `moth-antennae`
+/// (painted antennae: the classic detector left, Rekkefly right), each as
+/// MP4 and WebM, and `moth-angles.json`. Needs FFmpeg with libx264 and
+/// libvpx-vp9; `python3 scripts/web_media.py` runs this and puts the files in place.
+/// `REKKEFLY_WEB_OUT=dir cargo test --release --test moth web_media -- --ignored`
+#[test]
+#[ignore]
+fn web_media() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let Some(out) = std::env::var_os("REKKEFLY_WEB_OUT") else {
+        return;
+    };
+    let out = std::path::PathBuf::from(out);
+    let ffmpeg = std::env::var_os("REKKEFLY_FFMPEG").unwrap_or_else(|| "ffmpeg".into());
+    // Each video as H.264 MP4 and, for browsers without H.264, VP9 WebM.
+    let encoder = |name: &str, width: u32, height: u32, codec: &[&str]| {
+        Command::new(&ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-y"])
+            .args(["-f", "rawvideo", "-pix_fmt", "rgb24", "-r", "30"])
+            .args(["-s", &format!("{width}x{height}"), "-i", "-"])
+            .args(codec)
+            .args(["-pix_fmt", "yuv420p", "-an"])
+            .arg(out.join(name))
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("FFmpeg with libx264 and libvpx-vp9")
+    };
+    let h264: Vec<&str> = "-c:v libx264 -preset veryslow -crf 27 -movflags +faststart"
+        .split(' ')
+        .collect();
+    let vp9: Vec<&str> = "-c:v libvpx-vp9 -crf 46 -b:v 0 -row-mt 1 -deadline good -cpu-used 2"
+        .split(' ')
+        .collect();
+    let pair = |name: &str, width: u32, height: u32| {
+        [
+            encoder(&format!("{name}.mp4"), width, height, &h264),
+            encoder(&format!("{name}.webm"), width, height, &vp9),
+        ]
+    };
+    let (robust, classic) = (config(Method::WingBlur), config(Method::Edge));
+    let (tr, tc) = (
+        Tracker::new(&robust, 640, 480),
+        Tracker::new(&classic, 640, 480),
+    );
+    let gap = 8;
+    let mut tracking = pair("moth-tracking", 640, 480);
+    let mut compare = pair("moth-antennae", 640 * 2 + gap, 480);
+    let feed = |children: &mut [std::process::Child; 2], pixels: &[u8]| {
+        for child in children.iter_mut() {
+            child.stdin.as_mut().unwrap().write_all(pixels).unwrap();
+        }
+    };
+    let round = |a: Option<f32>| a.map(|a| (a.to_degrees() * 10.0).round() / 10.0);
+    let (mut left, mut right) = (Vec::new(), Vec::new());
+    // L − R with the antennae, and each detector's own result without them.
+    let (mut lr_classic, mut lr_robust, mut clean_classic, mut clean_robust) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for (k, f) in frames().enumerate() {
+        let m = tr.process(&f, None, 0).unwrap();
+        left.push(round(m.left.angle_rad));
+        right.push(round(m.right.angle_rad));
+        clean_robust.push(round(m.left_minus_right_rad));
+        clean_classic.push(round(tc.process(&f, None, 0).unwrap().left_minus_right_rad));
+        let canvas = rekkefly::overlay::render(&f, &robust, Some(&m));
+        feed(&mut tracking, &canvas.pixels);
+        // The same painted antennae as the README's chart.
+        let dirty = antennae(&f, &robust, k as f32 / 30.0, 2.0, 150);
+        let (mc, mr) = (
+            tc.process(&dirty, None, 0).unwrap(),
+            tr.process(&dirty, None, 0).unwrap(),
+        );
+        lr_classic.push(round(mc.left_minus_right_rad));
+        lr_robust.push(round(mr.left_minus_right_rad));
+        let a = rekkefly::overlay::render(&dirty, &classic, Some(&mc));
+        let b = rekkefly::overlay::render(&dirty, &robust, Some(&mr));
+        let row = (640 * 2 + gap) as usize * 3;
+        let mut both = vec![11u8; row * 480];
+        for y in 0..480 {
+            let (src, dst) = (y * 640 * 3, y * row);
+            both[dst..dst + 640 * 3].copy_from_slice(&a.pixels[src..src + 640 * 3]);
+            let at = dst + (640 + gap as usize) * 3;
+            both[at..at + 640 * 3].copy_from_slice(&b.pixels[src..src + 640 * 3]);
+        }
+        feed(&mut compare, &both);
+    }
+    for mut child in tracking.into_iter().chain(compare) {
+        drop(child.stdin.take());
+        assert!(child.wait().unwrap().success());
+    }
+    let json = serde_json::json!({
+        "fps": 30,
+        "tracking": {"left": left, "right": right},
+        "antennae": {
+            "classic": lr_classic,
+            "rekkefly": lr_robust,
+            "clean": {"classic": clean_classic, "rekkefly": clean_robust},
+        },
+    });
+    std::fs::write(out.join("moth-angles.json"), json.to_string()).unwrap();
+}
