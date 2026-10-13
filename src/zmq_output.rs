@@ -17,21 +17,23 @@ use crate::tracker::Measurement;
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
-    io::{Read, Write},
-    net::{Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
+    io::{ErrorKind, Read, Write},
+    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
     },
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 /// Messages queued per subscriber before it misses some (libzmq's default).
 pub const HIGH_WATER_MARK: usize = 1000;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+/// How often a subscriber's threads check whether to go on while its socket
+/// has nothing to read, or no room to write.
+const POLL: Duration = Duration::from_millis(5);
 /// Larger frames from a subscriber are refused; subscriptions are tiny.
 const MAX_INCOMING_FRAME: u64 = 1 << 20;
 
@@ -185,8 +187,7 @@ impl Peer {
 #[derive(Default)]
 struct Shared {
     peers: Mutex<Vec<Arc<Peer>>>,
-    /// Every open connection, handshaking or not, so finish() can close them.
-    connections: Mutex<HashMap<u64, TcpStream>>,
+    /// One per connection, handshaking or not.
     threads: Mutex<Vec<JoinHandle<()>>>,
     stop: AtomicBool,
 }
@@ -266,9 +267,7 @@ impl ZmqPublisher {
         for peer in self.shared.peers.lock().unwrap().drain(..) {
             peer.alive.store(false, Ordering::Relaxed);
         }
-        for (_, stream) in self.shared.connections.lock().unwrap().drain() {
-            let _ = stream.shutdown(Shutdown::Both);
-        }
+        // Each connection's threads notice within POLL and close the socket.
         let threads: Vec<JoinHandle<()>> = self.shared.threads.lock().unwrap().drain(..).collect();
         for t in threads {
             let _ = t.join();
@@ -283,28 +282,20 @@ impl Drop for ZmqPublisher {
 }
 
 fn accept(listener: TcpListener, shared: Arc<Shared>) {
-    let mut next = 0u64;
     while !shared.stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, _)) => {
-                // macOS and Windows hand out sockets in the listener's
-                // non-blocking mode.
-                let Ok(handle) = stream.set_nonblocking(false).and(stream.try_clone()) else {
+                // Set explicitly: Linux hands accepted sockets out blocking,
+                // macOS and Windows in the listener's mode.
+                if stream.set_nonblocking(true).is_err() {
                     continue;
-                };
-                let id = next;
-                next += 1;
-                shared.connections.lock().unwrap().insert(id, handle);
+                }
                 let state = shared.clone();
                 let mut threads = shared.threads.lock().unwrap();
                 threads.retain(|t| !t.is_finished());
-                if let Ok(thread) =
-                    thread::Builder::new()
-                        .name("zmq-subscriber".into())
-                        .spawn(move || {
-                            serve(stream, &state);
-                            state.connections.lock().unwrap().remove(&id);
-                        })
+                if let Ok(thread) = thread::Builder::new()
+                    .name("zmq-subscriber".into())
+                    .spawn(move || serve(stream, &state))
                 {
                     threads.push(thread);
                 }
@@ -317,17 +308,57 @@ fn accept(listener: TcpListener, shared: Arc<Shared>) {
     }
 }
 
+/// A non-blocking socket used as a blocking one, which gives up as soon as
+/// `go_on` says so. No thread ever blocks in a socket call, because on
+/// Windows shutting a socket down from another thread doesn't wake it.
+struct Polled<'a, F: Fn() -> bool> {
+    stream: &'a TcpStream,
+    go_on: F,
+}
+impl<F: Fn() -> bool> Polled<'_, F> {
+    fn wait<T>(&self, mut attempt: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+        loop {
+            match attempt() {
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    if !(self.go_on)() {
+                        return Err(ErrorKind::TimedOut.into());
+                    }
+                    thread::sleep(POLL);
+                }
+                result => return result,
+            }
+        }
+    }
+}
+impl<F: Fn() -> bool> Read for Polled<'_, F> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut stream = self.stream;
+        self.wait(|| stream.read(buf))
+    }
+}
+impl<F: Fn() -> bool> Write for Polled<'_, F> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut stream = self.stream;
+        self.wait(|| stream.write(buf))
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// One subscriber: the handshake, then this thread reads its subscriptions
 /// while a second one writes its messages.
 fn serve(stream: TcpStream, shared: &Shared) {
-    let Ok(protocol) = handshake(&stream) else {
-        let _ = stream.shutdown(Shutdown::Both);
+    // Matches the latency of libzmq, which turns Nagle's algorithm off.
+    let _ = stream.set_nodelay(true);
+    let deadline = Instant::now() + HANDSHAKE_TIMEOUT;
+    let mut handshaking = Polled {
+        stream: &stream,
+        go_on: || !shared.stop.load(Ordering::Relaxed) && Instant::now() < deadline,
+    };
+    let Ok(protocol) = handshake(&mut handshaking) else {
         return;
     };
-    let Ok(writer) = stream.try_clone() else {
-        return;
-    };
-    let _ = stream.set_read_timeout(None);
     let (queue, outgoing) = sync_channel(HIGH_WATER_MARK);
     let peer = Arc::new(Peer {
         queue,
@@ -342,35 +373,37 @@ fn serve(stream: TcpStream, shared: &Shared) {
         }
         peers.push(peer.clone());
     }
-    let writing = peer.clone();
-    let Ok(write_thread) = thread::Builder::new()
-        .name("zmq-write".into())
-        .spawn(move || write_loop(writer, outgoing, writing))
-    else {
+    thread::scope(|scope| {
+        let (stream, peer) = (&stream, &*peer);
+        let writer = thread::Builder::new()
+            .name("zmq-write".into())
+            .spawn_scoped(scope, move || write_loop(stream, outgoing, peer));
+        if writer.is_ok() {
+            read_loop(stream, protocol, peer);
+        }
         peer.alive.store(false, Ordering::Relaxed);
-        return;
-    };
-    read_loop(&stream, protocol, &peer);
-    peer.alive.store(false, Ordering::Relaxed);
-    let _ = stream.shutdown(Shutdown::Both);
-    // Wake the writer if it waits on an empty queue.
-    let _ = peer.queue.try_send(Outgoing::Command(Vec::new()));
-    let _ = write_thread.join();
+        // Wake the writer if it waits on an empty queue.
+        let _ = peer.queue.try_send(Outgoing::Command(Vec::new()));
+    });
 }
 
-fn write_loop(mut stream: TcpStream, outgoing: Receiver<Outgoing>, peer: Arc<Peer>) {
+/// Ends when the subscriber is gone or finish() is called.
+fn write_loop(stream: &TcpStream, outgoing: Receiver<Outgoing>, peer: &Peer) {
+    let mut out = Polled {
+        stream,
+        go_on: || peer.alive.load(Ordering::Relaxed),
+    };
     while let Ok(item) = outgoing.recv() {
         if !peer.alive.load(Ordering::Relaxed) {
             break;
         }
         let ok = match item {
-            Outgoing::Data(body) => write_frame(&mut stream, 0, &body).is_ok(),
+            Outgoing::Data(body) => write_frame(&mut out, 0, &body).is_ok(),
             Outgoing::Command(body) if body.is_empty() => true,
-            Outgoing::Command(body) => write_frame(&mut stream, COMMAND, &body).is_ok(),
+            Outgoing::Command(body) => write_frame(&mut out, COMMAND, &body).is_ok(),
         };
         if !ok {
             peer.alive.store(false, Ordering::Relaxed);
-            let _ = stream.shutdown(Shutdown::Both);
             break;
         }
     }
@@ -378,8 +411,15 @@ fn write_loop(mut stream: TcpStream, outgoing: Receiver<Outgoing>, peer: Arc<Pee
 
 /// Subscriptions arrive as messages (`\x01topic`, `\x00topic` to cancel) or,
 /// from ZMTP 3.1 peers, as SUBSCRIBE and CANCEL commands.
-fn read_loop(mut stream: &TcpStream, protocol: Protocol, peer: &Peer) {
-    while let Ok((flags, body)) = read_frame(&mut stream) {
+fn read_loop(stream: &TcpStream, protocol: Protocol, peer: &Peer) {
+    let alive = || peer.alive.load(Ordering::Relaxed);
+    let mut input = Polled {
+        stream,
+        go_on: alive,
+    };
+    while alive()
+        && let Ok((flags, body)) = read_frame(&mut input)
+    {
         if flags & COMMAND != 0 && protocol == Protocol::V3 {
             let Some((name, data)) = command(&body) else {
                 continue;
@@ -461,11 +501,7 @@ fn command(body: &[u8]) -> Option<(&[u8], &[u8])> {
 /// libzmq's handshake, as the publishing side: ZMTP 3.0 with the NULL
 /// mechanism when the peer supports it, else ZMTP 2.0. ZMTP 1.0 peers
 /// (libzmq 2.x, no signature) are refused.
-fn handshake(stream: &TcpStream) -> Result<Protocol> {
-    let mut s = stream;
-    stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
-    // Matches the latency of libzmq, which turns Nagle's algorithm off.
-    stream.set_nodelay(true)?;
+fn handshake(s: &mut (impl Read + Write)) -> Result<Protocol> {
     s.write_all(&[0xff, 0, 0, 0, 0, 0, 0, 0, 1, 0x7f])?;
     let mut signature = [0u8; 10];
     s.read_exact(&mut signature)?;
@@ -495,8 +531,8 @@ fn handshake(stream: &TcpStream) -> Result<Protocol> {
         ready.extend_from_slice(b"Socket-Type");
         ready.extend_from_slice(&3u32.to_be_bytes());
         ready.extend_from_slice(b"PUB");
-        write_frame(&mut s, COMMAND, &ready)?;
-        let (flags, body) = read_frame(&mut s)?;
+        write_frame(s, COMMAND, &ready)?;
+        let (flags, body) = read_frame(s)?;
         ensure!(flags & COMMAND != 0, "Expected a READY command");
         let (name, mut properties) = command(&body).context("Malformed READY")?;
         ensure!(name == b"READY", "Expected a READY command");
@@ -525,7 +561,7 @@ fn handshake(stream: &TcpStream) -> Result<Protocol> {
             "Only SUB and XSUB sockets may connect to a PUB socket"
         );
         s.write_all(&[0, 0])?;
-        read_frame(&mut s)?;
+        read_frame(s)?;
         Ok(Protocol::V2)
     }
 }

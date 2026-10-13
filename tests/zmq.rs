@@ -145,7 +145,14 @@ fn a_zmtp_2_subscriber_like_old_netmq_receives_messages() {
     std::thread::sleep(Duration::from_millis(50));
     p.send_bytes(b"{\"x\": 1.0}".to_vec());
     assert_eq!(frame(&mut s), b"{\"x\": 1.0}");
+    // Stopping doesn't wait for connected subscribers to leave (on Windows,
+    // a thread blocked reading a socket isn't woken by shutting it down).
+    let start = std::time::Instant::now();
     p.finish().unwrap();
+    assert!(start.elapsed() < Duration::from_secs(2));
+    let mut rest = Vec::new();
+    s.read_to_end(&mut rest).unwrap();
+    assert!(rest.is_empty(), "the publisher closed the connection");
 }
 
 #[test]
