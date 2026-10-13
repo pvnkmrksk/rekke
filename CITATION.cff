@@ -3,7 +3,7 @@ message: "If you use Rekkefly in your research, please cite it as below."
 title: "Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects"
 type: software
 authors:
-  - name: "pvnkmrksk"
+  - name: "Pavan Kumar Kaushik"
 version: 0.6.0
 license: MIT
 repository-code: "https://github.com/pvnkmrksk/rekke"
