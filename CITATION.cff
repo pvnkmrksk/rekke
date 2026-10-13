@@ -6,7 +6,8 @@ authors:
   - name: "Pavan Kumar Kaushik"
 version: 0.6.0
 license: MIT
-repository-code: "https://github.com/pvnkmrksk/rekke"
+repository-code: "https://github.com/pvnkmrksk/rekkefly"
+url: "https://pvnkmrksk.github.io/rekkefly/"
 keywords:
   - Kinefly
   - insect flight

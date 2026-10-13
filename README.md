@@ -3,8 +3,9 @@
   <img src="docs/images/banner-light.png" alt="Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects on Mac, Windows and Linux." width="760">
 </picture>
 
-[![Latest release](https://img.shields.io/github/v/release/pvnkmrksk/rekke?label=download&color=ff7059)](https://github.com/pvnkmrksk/rekke/releases/latest)
-[![Build and release](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml/badge.svg)](https://github.com/pvnkmrksk/rekke/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/pvnkmrksk/rekkefly?label=download&color=ff7059)](https://github.com/pvnkmrksk/rekkefly/releases/latest)
+[![Documentation](https://img.shields.io/badge/docs-website-1f5c66)](https://pvnkmrksk.github.io/rekkefly/docs/)
+[![Build and release](https://github.com/pvnkmrksk/rekkefly/actions/workflows/build.yml/badge.svg)](https://github.com/pvnkmrksk/rekkefly/actions/workflows/build.yml)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1f5c66)
 ![Written in Rust](https://img.shields.io/badge/written%20in-Rust-b7410e)
 [![Kinefly compatible](https://img.shields.io/badge/ZMQ-Kinefly%20compatible-122329)](#kinefly-compatible-zmq)
@@ -12,6 +13,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-5b6b6e)](LICENSE)
 
 **Rekkefly is the new Kinefly: a modern, native Rust replacement for it.** It tracks the wings of a tethered insect (flies, bees, moths) from a camera or a video file. It streams each wing's angle and **L − R**, the steering signal, to your closed-loop experiment in real time. It is one small program: download, double-click, track. There is no ROS, Python, OpenCV or Docker to install.
+
+<p align="center"><b><a href="https://pvnkmrksk.github.io/rekkefly/">Website</a> · <a href="https://pvnkmrksk.github.io/rekkefly/docs/">Documentation</a> · <a href="https://github.com/pvnkmrksk/rekkefly/releases/latest">Download</a> · <a href="https://pvnkmrksk.github.io/rekkefly/docs/getting-started/quick-start.html">Quick start</a> · <a href="CHANGELOG.md">Changelog</a></b></p>
 
 The name joins **ರೆಕ್ಕೆ** (*rekke*, the [Kannada word for wing](https://alar.ink/dictionary/kannada/english/%E0%B2%B0%E0%B3%86%E0%B2%95%E0%B3%8D%E0%B2%95%E0%B3%86)) with **fly**, and nods to its roots in [Kinefly](https://github.com/ssafarik/Kinefly).
 
@@ -38,6 +41,8 @@ The name joins **ರೆಕ್ಕೆ** (*rekke*, the [Kannada word for wing](http
 
 ## Contents
 
+This README is the tour. The [documentation](https://pvnkmrksk.github.io/rekkefly/docs/) has the details: every setting, the measurement format, tuning, troubleshooting and the full command-line and MCP references, with search.
+
 1. [Quick start](#quick-start)
 2. [The Bogong moth example](#the-bogong-moth-example)
 3. [From Kinefly to Rekkefly](#from-kinefly-to-rekkefly)
@@ -54,12 +59,13 @@ The name joins **ರೆಕ್ಕೆ** (*rekke*, the [Kannada word for wing](http
 14. [Troubleshooting](#troubleshooting)
 15. [Installing: details per system](#installing-details-per-system)
 16. [Building, testing and benchmarks](#building-testing-and-benchmarks)
+17. [Contributing, support and citing](#contributing-support-and-citing)
 
 ---
 
 ## Quick start
 
-**1. Download** the installer for your computer from [Releases](https://github.com/pvnkmrksk/rekke/releases/latest):
+**1. Download** the installer for your computer from the [website](https://pvnkmrksk.github.io/rekkefly/#download) or [Releases](https://github.com/pvnkmrksk/rekkefly/releases/latest):
 
 | Computer | Download | Install |
 | --- | --- | --- |
@@ -275,7 +281,7 @@ claude mcp add rekkefly -- rekkefly mcp
 # Mac app: claude mcp add rekkefly -- /Applications/Rekkefly.app/Contents/MacOS/rekkefly mcp
 ```
 
-It has 15 tools. `list_cameras`, `list_configs` and `get_config` find things. `update_config` makes validated edits that keep the file's comments. `start_rig`, `launch_rigs`, `stop_rig`, `record` and `save_background` run rigs. `rig_status` reads live angles, and `measure` summarises every frame of a trial. `snapshot` returns an image of the frame with the tracking drawn on it, so the agent can *see* whether the markers fit. `track_video`, `clip_video` and `benchmark` work offline. Setup for each client, the tool reference and an example session are in [docs/mcp.md](docs/mcp.md).
+It has 15 tools ([reference](https://pvnkmrksk.github.io/rekkefly/docs/reference/mcp-tools.html)). `list_cameras`, `list_configs` and `get_config` find things. `update_config` makes validated edits that keep the file's comments. `start_rig`, `launch_rigs`, `stop_rig`, `record` and `save_background` run rigs. `rig_status` reads live angles, and `measure` summarises every frame of a trial. `snapshot` returns an image of the frame with the tracking drawn on it, so the agent can *see* whether the markers fit. `track_video`, `clip_video` and `benchmark` work offline. Setup for each client, the tool reference and an example session are in [docs/mcp.md](docs/mcp.md).
 
 **Scripts.** Everything also works from the command line, with machine-readable output:
 
@@ -467,7 +473,7 @@ Missing or disabled angles are `null`, never zero or a stale value.
 
 ## Configuration reference
 
-Every rig has one TOML file. The shipped files in [`configs/`](configs) are commented line by line; this is a summary.
+Every rig has one TOML file. The shipped files in [`configs/`](configs) are commented line by line; this is a summary. Every key, with its limits, is in the [configuration reference](https://pvnkmrksk.github.io/rekkefly/docs/reference/configuration.html).
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -518,7 +524,7 @@ Run-only overrides (never saved): --device SEL, --video FILE, --label NAME,
 Other: --headless, --frames N, --benchmark, --json, --screenshot PNG, --init
 ```
 
-Run `rekkefly --help` for the full text.
+Run `rekkefly --help` for the full text, or see the [command-line reference](https://pvnkmrksk.github.io/rekkefly/docs/reference/cli.html).
 
 ---
 
@@ -536,6 +542,8 @@ Run `rekkefly --help` for the full text.
 | **L − R is noisy or spiky** | Put the hinges on the wing bases, the inner radius just past the body and the outer radius inside the blur. Keep the sectors off the body, legs and head. Watch the debug traces while you adjust |
 | **The edge jumps to a leg** | Make sure **Ignore legs** is ticked (`method = "wing_blur"`). Increase `spike_width_deg` for thick legs |
 | **Recording stopped: "queue is full"** | The disk can't keep up. Use `format = "mjpeg"`, a lower resolution or frame rate, or a faster disk |
+
+More problems and fixes: [Troubleshooting](https://pvnkmrksk.github.io/rekkefly/docs/troubleshooting.html).
 
 ---
 
@@ -577,9 +585,9 @@ sudo apt-get install build-essential pkg-config nasm libclang-dev libv4l-dev lib
 ```
 
 ```sh
-git clone https://github.com/pvnkmrksk/rekke.git && cd rekke
+git clone https://github.com/pvnkmrksk/rekkefly.git && cd rekkefly
 cargo run --release -- samples/bogong-moth.avi --loop  # try it
-cargo test --locked                                    # 104 tests, including real moth footage and the MCP server
+cargo test --locked                                    # over 100 tests: real moth footage, the MCP server, the docs
 cargo clippy --locked --all-targets -- -D warnings
 cargo build --release --locked --no-default-features   # processing only, no GUI/camera
 ```
@@ -632,3 +640,15 @@ Sampling no longer copies or inverts the whole frame. Each sector is sampled onc
 | `src/gui.rs` | The desktop interface |
 
 Rekkefly was written from scratch after studying Kinefly's README and `tracker_edge.py`. It keeps Kinefly's annular-sector and angular-gradient approach and its angle conventions; it does not copy the Python code.
+
+---
+
+## Contributing, support and citing
+
+- **Questions, bugs and ideas:** [open an issue](https://github.com/pvnkmrksk/rekkefly/issues/new/choose). For tracking problems, a short clip (`rekkefly clip in.avi out.avi --duration 5`) helps most.
+- **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks to run and the house rules. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+- **Security:** report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
+- **What changed:** [CHANGELOG.md](CHANGELOG.md). **What was verified:** [VALIDATION.md](VALIDATION.md).
+- **Citing:** if you use Rekkefly in research, please cite it ([CITATION.cff](CITATION.cff), or **Cite this repository** on GitHub).
+
+Rekkefly is free software under the [MIT License](LICENSE).

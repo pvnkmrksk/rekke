@@ -6,8 +6,9 @@ description = "Rekkefly, the new Kinefly: real-time wing tracking for tethered i
 keywords = ["kinefly", "insect-flight", "drosophila", "wing-tracking", "neuroscience"]
 categories = ["science", "computer-vision", "multimedia::video"]
 license = "MIT"
-repository = "https://github.com/pvnkmrksk/rekke"
-homepage = "https://github.com/pvnkmrksk/rekke"
+repository = "https://github.com/pvnkmrksk/rekkefly"
+homepage = "https://pvnkmrksk.github.io/rekkefly/"
+documentation = "https://pvnkmrksk.github.io/rekkefly/docs/"
 readme = "README.md"
 
 [features]

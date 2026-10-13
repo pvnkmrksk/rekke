@@ -45,6 +45,7 @@ release with `RELEASE_NOTES.md` as its notes.
 | MCP server | `src/mcp.rs` | `tests/mcp.rs` drives the real binary over stdio |
 | Offline tracking, overlays | `src/analyze.rs`, `src/overlay.rs` | `tests/mcp.rs`, unit tests |
 | GUI | `src/gui.rs` | egui event tests in the module; screenshots under Xvfb |
+| Website and docs | `site/` (landing page), `book/` (mdBook) | `tests/docs.rs` (CLI help, MCP tools, config keys), `scripts/build_site.py` (links) |
 
 House rules:
 
@@ -63,3 +64,5 @@ House rules:
   back (sample video, outputs off) with a visible banner.
 - The README's figures come from scripts and ignored tests; regenerate them
   rather than editing images (see "Regenerating assets" in the README).
+- User-visible changes update the docs in `book/src/` and `CHANGELOG.md`. After
+  changing CLI help or an MCP tool, run `REKKEFLY_BLESS=1 cargo test --test docs`.

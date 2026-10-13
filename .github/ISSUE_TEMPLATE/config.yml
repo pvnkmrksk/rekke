@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://pvnkmrksk.github.io/rekkefly/docs/
+    about: Installation, marker placement, troubleshooting and every setting.
+  - name: Troubleshooting guide
+    url: https://pvnkmrksk.github.io/rekkefly/docs/troubleshooting.html
+    about: Fixes for cameras, ports, noisy L − R and more.
+  - name: Report a security vulnerability
+    url: https://github.com/pvnkmrksk/rekkefly/security/advisories/new
+    about: Please report security problems privately.

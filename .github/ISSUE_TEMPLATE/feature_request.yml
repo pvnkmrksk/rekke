@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something Rekkefly should do.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the experiment or workflow, not only the feature.
+      placeholder: In closed-loop experiments I need wingbeat frequency alongside amplitude, because ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+      description: How you imagine it working, in the window, the config, the outputs or for agents.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+  - type: checkboxes
+    id: kinefly
+    attributes:
+      label: Kinefly
+      options:
+        - label: Kinefly did this, and I rely on it.

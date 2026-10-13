@@ -1,0 +1,8 @@
+/* Inter, self-hosted with the website (site/assets/fonts, SIL Open Font
+   License). The published book sits at <site>/docs/, so the fonts are two
+   folders up from this file. A local `mdbook serve` falls back to system fonts. */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("../../assets/fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("../../assets/fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("../../assets/fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("../../assets/fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 800; font-display: swap; src: url("../../assets/fonts/inter-800.woff2") format("woff2"); }

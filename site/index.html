@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects</title>
+  <meta name="description" content="Rekkefly tracks the wings of tethered insects from a camera or video and streams L − R to closed-loop experiments in real time. Native on Mac, Windows and Linux, Kinefly-compatible, unfazed by legs and antennae, and ready for AI agents.">
+  <meta name="theme-color" content="#f4f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b171b" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <link rel="canonical" href="https://pvnkmrksk.github.io/rekkefly/">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/inter-800.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/site.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Rekkefly">
+  <meta property="og:title" content="Rekkefly: the new Kinefly">
+  <meta property="og:description" content="Real-time wing tracking for tethered insects. One native app for Mac, Windows and Linux, Kinefly-compatible, unfazed by legs and antennae.">
+  <meta property="og:url" content="https://pvnkmrksk.github.io/rekkefly/">
+  <meta property="og:image" content="https://pvnkmrksk.github.io/rekkefly/docs/images/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Rekkefly: the new Kinefly">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Rekkefly",
+    "alternateName": "The new Kinefly",
+    "description": "Real-time wing tracking for tethered insects, with Kinefly-compatible ZMQ output.",
+    "applicationCategory": "ScientificApplication",
+    "operatingSystem": "macOS, Windows, Linux",
+    "softwareVersion": "0.6.0",
+    "license": "https://opensource.org/licenses/MIT",
+    "url": "https://pvnkmrksk.github.io/rekkefly/",
+    "downloadUrl": "https://github.com/pvnkmrksk/rekkefly/releases/latest",
+    "codeRepository": "https://github.com/pvnkmrksk/rekkefly",
+    "programmingLanguage": "Rust",
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}
+  }
+  </script>
+  <script>
+    // Apply the saved theme before the page paints; reveal animations need JS.
+    document.documentElement.classList.add("js");
+    try { var t = localStorage.getItem("rekkefly-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="top">
+  <div class="nav-inner">
+    <a class="brand" href="./" aria-label="Rekkefly home">
+      <img src="assets/logo.svg" alt="" width="32" height="32">
+      <span>Rekkefly</span>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#agents">Agents</a>
+      <a href="docs/">Docs</a>
+      <a href="https://github.com/pvnkmrksk/rekkefly" data-repo-link>GitHub</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch between light and dark">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg>
+      </button>
+      <a class="btn btn-small btn-coral" href="#download">Download</a>
+      <button class="icon-btn menu-btn" id="menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <nav class="mobile-menu" id="mobile-menu" aria-label="Main" hidden>
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#evidence">Evidence</a>
+    <a href="#agents">Agents</a>
+    <a href="docs/">Documentation</a>
+    <a href="https://github.com/pvnkmrksk/rekkefly" data-repo-link>GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy reveal">
+      <a class="pill" href="#kinefly"><span class="pill-dot"></span> The new Kinefly · <span data-release-version>v0.6</span></a>
+      <h1>Wing tracking for tethered insects, <span class="accent">done right.</span></h1>
+      <p class="lede">Rekkefly follows each wing's stroke envelope from a camera or a video and streams <strong>L − R</strong>, the steering signal, to your closed-loop experiment in real time. One small native app. No ROS, Python, OpenCV or Docker.</p>
+      <div class="cta">
+        <a class="btn btn-coral btn-large" id="hero-download" href="#download">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
+          <span data-hero-label>Download</span>
+        </a>
+        <a class="btn btn-ghost btn-large" href="docs/getting-started/quick-start.html">Quick start <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="meta"><span data-hero-meta>Free and open source · macOS · Windows · Linux</span></p>
+    </div>
+    <figure class="hero-visual reveal" aria-label="An animated tethered fly: both wings beat inside their tracking sectors, and Rekkefly's leading edges follow them while the legs move">
+      <div class="stage">
+        <canvas id="hero-canvas" width="600" height="540" role="img" aria-label="Animated illustration of Rekkefly tracking a tethered fly"></canvas>
+        <div class="readout" aria-hidden="true">
+          <span><i class="sw sw-l"></i>L <b id="ro-l">+0.0°</b></span>
+          <span><i class="sw sw-r"></i>R <b id="ro-r">+0.0°</b></span>
+          <span><i class="sw sw-d"></i>L − R <b id="ro-d">+0.0°</b></span>
+        </div>
+      </div>
+      <figcaption>The leading edge of each wing's blur (coral) is tracked inside an annular sector around its hinge, every frame, while the legs and antennae are ignored.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="stats" aria-label="Rekkefly in numbers">
+  <div class="wrap stat-grid">
+    <div class="stat reveal"><b><span class="count" data-to="340">340</span> µs</b><span>to track a 640×480 frame</span></div>
+    <div class="stat reveal"><b><span class="count" data-to="3">3</span> <small>of 900</small></b><span>moth frames where painted antennae moved L − R (classic: 489)</span></div>
+    <div class="stat reveal"><b><span class="count" data-to="6">6</span>%</b><span>of one CPU core for a 30 fps rig</span></div>
+    <div class="stat reveal"><b><span class="count" data-to="15">15</span></b><span>MCP tools for AI agents</span></div>
+  </div>
+</section>
+
+<section class="section" id="footage">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <p class="eyebrow">Real footage</p>
+      <h2>On a real Bogong moth.</h2>
+      <p>Every download includes 30 seconds of a tethered Bogong moth, with antennae and legs right beside the wing sectors, one faint wing, and a wingbeat faster than the camera. With no camera connected, Rekkefly plays it with its own markers, so you can learn the app in minutes.</p>
+      <p>The debug traces show the left wing, the right wing and L − R, and the angular profile with legs and antennae removed. Each frame catches a different moment of the wingbeat, so L and R swing while L − R stays steady.</p>
+      <a class="link-arrow" href="docs/getting-started/bogong-moth.html">About the moth example <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="media reveal">
+      <video src="docs/media/bogong-moth-tracking.mp4" poster="docs/media/bogong-moth-tracking.jpg" muted loop playsinline preload="none" data-autoplay aria-label="Screen recording: Rekkefly tracking the Bogong moth, with the debug traces open"></video>
+      <button class="play" type="button" aria-label="Play the video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Features</p>
+      <h2>Everything a flight rig needs. Nothing it doesn't.</h2>
+    </div>
+    <div class="cards">
+      <a class="card reveal" href="docs/getting-started/install.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+        <h3>Download, double-click, track</h3>
+        <p>Installers for Mac, Windows and Ubuntu, and portable folders. Your camera opens; every edit saves itself.</p>
+      </a>
+      <a class="card reveal" href="docs/tracking/detectors.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-9 6-12 8-12s4 4 5 6 2 2 3 1"/><path d="M14 4v16" stroke-dasharray="2 2.5"/></svg></span>
+        <h3>Ignores legs and antennae</h3>
+        <p>Follows the broad wing-blur shoulder, not the sharpest edge, so a kicking leg never spikes L − R.</p>
+      </a>
+      <a class="card reveal" href="docs/tracking/performance.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+        <h3>Fast and light</h3>
+        <p>About 340 µs a frame on the capture thread. A 30 fps rig uses 6% of one core and 10 MB.</p>
+      </a>
+      <a class="card reveal" href="docs/guide/rigs.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><rect x="13" y="13" width="8" height="7" rx="1.5"/></svg></span>
+        <h3>A whole lab from one file</h3>
+        <p>Each rig has its own camera, ports, label and settings. One TOML manifest and one command start them all.</p>
+      </a>
+      <a class="card reveal" href="docs/kinefly.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" opacity=".35"/><path d="M4 12h4M16 12h4M12 4v4M12 16v4"/></svg></span>
+        <h3>Speaks Kinefly</h3>
+        <p>The same ZMQ JSON as the Kinefly Docker bridge, on the same port. Existing subscribers keep working.</p>
+      </a>
+      <a class="card reveal" href="docs/guide/agents.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="7" width="14" height="11" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5"/></svg></span>
+        <h3>Ready for AI agents</h3>
+        <p>A built-in MCP server lets an agent start rigs, look at the tracking, move markers and measure trials.</p>
+      </a>
+      <a class="card reveal" href="docs/guide/video.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></span>
+        <h3>Video in, video out</h3>
+        <p>Track recordings offline at 1,000 frames/s, cut snippets, and record small MJPEG with exact frame times.</p>
+      </a>
+      <a class="card reveal" href="docs/guide/outputs.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3l2-5 3 10 2-5h6"/></svg></span>
+        <h3>Every measurement, live</h3>
+        <p>Full measurements over UDP and JSONL: every part, every edge, strengths and timing. Missing means <code>null</code>.</p>
+      </a>
+      <a class="card reveal" href="docs/getting-started/markers.html">
+        <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12 5 6M12 12l7-6"/><path d="M5 6a9 9 0 0 0 0 12" opacity=".5"/><path d="M19 6a9 9 0 0 1 0 12" opacity=".5"/><circle cx="12" cy="12" r="1.6"/></svg></span>
+        <h3>Drag the markers</h3>
+        <p>Head, tail, hinges and sectors are dots you drag onto the insect. The wings mirror as you edit.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tint" id="how">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">How it works</p>
+      <h2>Legs are sharp. Wings are broad.</h2>
+      <p class="section-lede">A beating wing leaves a translucent stroke envelope tens of degrees wide; its leading edge is the stroke amplitude. A leg or an antenna is narrow, and because it is in focus, its edges are sharper than the wing's. A detector that reports the sharpest edge jumps onto it. Rekkefly ranks each edge by the broad blur shoulder behind it. Try it below.</p>
+    </div>
+    <div class="explainer reveal">
+      <div class="explainer-plot">
+        <canvas id="explainer-canvas" width="900" height="380" role="img" aria-label="An angular profile across one wing sector: the broad wing blur and a narrow leg. Markers show where the classic detector and Rekkefly place the leading edge."></canvas>
+      </div>
+      <div class="explainer-controls">
+        <label>Leg position <output id="leg-pos-out">80°</output>
+          <input type="range" id="leg-pos" min="2" max="118" step="0.5" value="80">
+        </label>
+        <label>Leg darkness <output id="leg-dark-out">0.70</output>
+          <input type="range" id="leg-dark" min="0" max="1.2" step="0.05" value="0.7">
+        </label>
+        <label class="check"><input type="checkbox" id="leg-animate" checked> Move the leg</label>
+        <div class="verdicts" aria-live="polite">
+          <div class="verdict verdict-classic"><span>Classic (strongest edge)</span><b id="v-classic">—</b></div>
+          <div class="verdict verdict-rekkefly"><span>Rekkefly</span><b id="v-rekkefly">—</b></div>
+        </div>
+        <p class="note">One radial band, simplified. Rekkefly also takes the median across radial bands, which out-votes a leg present at only some radii. <a href="docs/tracking/detectors.html">The full method</a>.</p>
+      </div>
+    </div>
+    <ol class="steps">
+      <li class="reveal"><b>Sample</b><span>Each sector is sampled on a polar grid around its hinge, from positions computed once.</span></li>
+      <li class="reveal"><b>Remove narrow</b><span>Features narrower than 5° are opened away in every radial band, however dark.</span></li>
+      <li class="reveal"><b>Vote</b><span>The median across bands out-votes anything present at only some radii.</span></li>
+      <li class="reveal"><b>Rank by shoulder</b><span>Edges score by steepness times the blur behind them; the steepest point gives the angle.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section" id="evidence">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Evidence</p>
+      <h2>Measured, not claimed.</h2>
+      <p class="section-lede">Thin lines painted through the wings of the real moth, compared frame by frame with the same frames without them. And synthetic flies with exactly known angles, legs kicking through the wings.</p>
+    </div>
+    <figure class="chart reveal">
+      <img class="only-light" src="docs/images/moth-antennae-light.png" alt="Over 30 seconds of the real moth with painted antennae, the classic detector's L minus R moves by more than 5 degrees in 489 of 900 frames, often by over 100 degrees; Rekkefly's moves in 3 of 900." loading="lazy" width="2400" height="1360">
+      <img class="only-dark" src="docs/images/moth-antennae-dark.png" alt="" loading="lazy" width="2400" height="1360">
+    </figure>
+    <div class="compare reveal">
+      <table>
+        <thead><tr><th>Test</th><th>Classic</th><th>Rekkefly</th></tr></thead>
+        <tbody>
+          <tr><td>Real moth, painted antennae: frames where L − R moved &gt; 5°</td><td>489 / 900</td><td><b>3 / 900</b></td></tr>
+          <tr><td>Real moth, painted legs 5 px wide</td><td>632 / 900</td><td><b>8 / 900</b></td></tr>
+          <tr><td>Synthetic: legs kicking through the wings, worst L − R error</td><td>107°</td><td><b>0.6°</b></td></tr>
+          <tr><td>Synthetic: front legs reaching forward, wing angles off by &gt; 4°</td><td>720 / 720</td><td><b>0 / 720</b></td></tr>
+          <tr><td>Median angle error, synthetic flies with known angles</td><td>—</td><td><b>≈ 0.25°</b></td></tr>
+        </tbody>
+      </table>
+      <p class="note">Reproduce with <code>cargo test --release --test moth -- --ignored</code> and <code>--test intrusions</code>. <a href="docs/tracking/evidence.html">All the tables, and what is not yet verified</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tint" id="performance">
+  <div class="wrap split split-rev">
+    <figure class="chart reveal">
+      <img class="only-light" src="docs/images/throughput-light.png" alt="Total frames per second with every rig decoding and tracking its own moth video: about 970 for one rig, 2,040 for two, 3,960 for four and 3,770 for eight, far above the 240 frames per second that eight 30 fps cameras need." loading="lazy" width="2400" height="1040">
+      <img class="only-dark" src="docs/images/throughput-dark.png" alt="" loading="lazy" width="2400" height="1040">
+    </figure>
+    <div class="split-copy reveal">
+      <p class="eyebrow">Performance</p>
+      <h2>Tracking is never the bottleneck.</h2>
+      <ul class="ticks">
+        <li>Tracking runs on each rig's capture thread, as each frame arrives.</li>
+        <li>No frame copies: sectors are sampled from precomputed positions.</li>
+        <li>Recording encodes on its own threads, never on the capture path.</li>
+        <li>Eight rigs on four cores still leave 15× headroom at 30 fps.</li>
+      </ul>
+      <a class="link-arrow" href="docs/tracking/performance.html">Benchmarks <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="kinefly">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Lineage</p>
+      <h2>Standing on Kinefly's shoulders.</h2>
+      <p class="section-lede">Rekkefly keeps Kinefly's method and conventions (annular sectors around the hinges, the leading edge of the stroke envelope, angles positive toward the head) and drops the stack around it.</p>
+    </div>
+    <ol class="timeline">
+      <li class="reveal">
+        <span class="tl-tag">Kinefly</span>
+        <h3>Made it practical</h3>
+        <p>Real-time wing, head and abdomen tracking for tethered flight, on ROS 1 and Python 2. Both are now end-of-life.</p>
+        <a href="https://github.com/ssafarik/Kinefly">ssafarik/Kinefly</a>
+      </li>
+      <li class="reveal">
+        <span class="tl-tag">Kinefly Docker</span>
+        <h3>Kept it alive</h3>
+        <p>The original stack in a container, plus a bridge that publishes wing angles as simple JSON over ZMQ.</p>
+        <a href="https://github.com/pvnkmrksk/Kinefly_Docker">pvnkmrksk/Kinefly_Docker</a>
+      </li>
+      <li class="reveal tl-now">
+        <span class="tl-tag">Rekkefly</span>
+        <h3>The next step</h3>
+        <p>A native app, written from scratch in Rust, that sends the bridge's exact message. Point your subscriber at it and it keeps working.</p>
+        <a href="docs/kinefly.html">Coming from Kinefly</a>
+      </li>
+    </ol>
+    <div class="code-card reveal">
+      <div class="code-head"><span>ZMQ, tcp://*:9871: one message per frame</span><button class="copy" type="button" data-copy="zmq-msg">Copy</button></div>
+      <pre id="zmq-msg"><code>{"x": 0.25, "y": -0.5, "z": 0.0, "yaw": 0.75, "pitch": 0.0, "roll": 0.0,
+ "frame_number": 77, "timestamp_unix": 1700000000.125}</code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tint" id="agents">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <p class="eyebrow">Automation</p>
+      <h2>Built for scripts and AI agents.</h2>
+      <p>A <a href="docs/guide/agents.html">Model Context Protocol server</a> is built in. An agent can list cameras, edit configs with validation, start and stop rigs, read live angles, measure a trial, and <em>see</em> a snapshot with the tracking drawn on it, to check the markers before it measures.</p>
+      <p>Every command also has <code>--json</code> output, configs are commented TOML, and live data streams over ZMQ and UDP.</p>
+      <a class="link-arrow" href="docs/reference/mcp-tools.html">All 15 tools <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="tabs reveal" data-tabs>
+      <div class="tab-list" role="tablist" aria-label="Examples">
+        <button role="tab" id="tab-mcp" aria-controls="panel-mcp" aria-selected="true">MCP</button>
+        <button role="tab" id="tab-cli" aria-controls="panel-cli" aria-selected="false" tabindex="-1">CLI</button>
+        <button role="tab" id="tab-py" aria-controls="panel-py" aria-selected="false" tabindex="-1">Python</button>
+        <button role="tab" id="tab-rigs" aria-controls="panel-rigs" aria-selected="false" tabindex="-1">rigs.toml</button>
+      </div>
+      <div class="tab-panel" role="tabpanel" id="panel-mcp" aria-labelledby="tab-mcp">
+        <button class="copy" type="button" data-copy="code-mcp">Copy</button>
+<pre id="code-mcp"><code><span class="c"># Add Rekkefly to Claude Code (or any MCP client)</span>
+claude mcp add rekkefly -- rekkefly mcp
+
+<span class="c"># Then ask: "Start arena 1 on camera 1, check the markers,</span>
+<span class="c">#  and give me the mean L − R over a 10-second trial."</span>
+start_rig  {config: "camera-a", device: "1", label: "arena-1"}
+snapshot   {rig: "arena-1"}          <span class="c">→ image with the sectors</span>
+measure    {rig: "arena-1", seconds: 10, csv: "trial-01.csv"}
+stop_rig   {rig: "arena-1"}</code></pre>
+      </div>
+      <div class="tab-panel" role="tabpanel" id="panel-cli" aria-labelledby="tab-cli" hidden>
+        <button class="copy" type="button" data-copy="code-cli">Copy</button>
+<pre id="code-cli"><code><span class="c"># Track a whole video, about 1,000 frames/s</span>
+rekkefly track trial.avi --config rig.toml --csv angles.csv --json
+
+<span class="c"># Headless, recording, and a JSON report at the end</span>
+rekkefly --config rig.toml --headless --record --frames 18000 --json
+
+rekkefly --list-cameras --json
+rekkefly clip big.avi snippet.avi --start 60 --duration 30</code></pre>
+      </div>
+      <div class="tab-panel" role="tabpanel" id="panel-py" aria-labelledby="tab-py" hidden>
+        <button class="copy" type="button" data-copy="code-py">Copy</button>
+<pre id="code-py"><code><span class="k">import</span> json, zmq   <span class="c"># python3 -m pip install pyzmq</span>
+
+sock = zmq.Context().socket(zmq.SUB)
+sock.connect(<span class="s">"tcp://127.0.0.1:9871"</span>)
+sock.setsockopt(zmq.SUBSCRIBE, <span class="s">b""</span>)
+<span class="k">while</span> True:
+    m = json.loads(sock.recv_string())
+    steer(m[<span class="s">"yaw"</span>])   <span class="c"># L − R, radians</span></code></pre>
+      </div>
+      <div class="tab-panel" role="tabpanel" id="panel-rigs" aria-labelledby="tab-rigs" hidden>
+        <button class="copy" type="button" data-copy="code-rigs">Copy</button>
+<pre id="code-rigs"><code><span class="c"># rekkefly --rigs rigs.toml --headless --record</span>
+[[rigs]]
+label = <span class="s">"left-arena"</span>
+device = <span class="s">"0"</span>
+zmq_port = 9871
+udp_target = <span class="s">"127.0.0.1:5601"</span>
+
+[[rigs]]
+label = <span class="s">"right-arena"</span>
+device = <span class="s">"C920"</span>
+zmq_port = 9872
+udp_target = <span class="s">"127.0.0.1:5602"</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="download">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Download</p>
+      <h2>Free, open source, and one file to install.</h2>
+      <p class="section-lede" data-release-line>The latest release, for every system. Each includes the Bogong moth example and the example configs.</p>
+    </div>
+    <div class="downloads" id="downloads">
+      <a class="dl reveal" data-os="mac" data-asset="macos-arm64\.dmg$" href="https://github.com/pvnkmrksk/rekkefly/releases/latest">
+        <span class="dl-os"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8C6.9 7.3 5 8.6 5 11.6c0 1.9.7 3.9 1.6 5.2.8 1.1 1.5 2.1 2.5 2 1 0 1.4-.6 2.6-.6s1.5.6 2.6.6c1.1 0 1.8-1 2.4-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.4-.9-2.4-3.9ZM14.3 5.6c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg>Mac</span>
+        <b>Apple silicon</b>
+        <span class="dl-file" data-file>Rekkefly-…-macos-arm64.dmg</span>
+        <span class="dl-size" data-size></span>
+        <span class="dl-badge">Your system</span>
+      </a>
+      <a class="dl reveal" data-os="mac-intel" data-asset="macos-x64\.dmg$" href="https://github.com/pvnkmrksk/rekkefly/releases/latest">
+        <span class="dl-os"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8C6.9 7.3 5 8.6 5 11.6c0 1.9.7 3.9 1.6 5.2.8 1.1 1.5 2.1 2.5 2 1 0 1.4-.6 2.6-.6s1.5.6 2.6.6c1.1 0 1.8-1 2.4-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.4-.9-2.4-3.9ZM14.3 5.6c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg>Mac</span>
+        <b>Intel</b>
+        <span class="dl-file" data-file>Rekkefly-…-macos-x64.dmg</span>
+        <span class="dl-size" data-size></span>
+        <span class="dl-badge">Your system</span>
+      </a>
+      <a class="dl reveal" data-os="windows" data-asset="windows-x64-setup\.exe$" href="https://github.com/pvnkmrksk/rekkefly/releases/latest">
+        <span class="dl-os"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM11.5 4.4 21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z"/></svg>Windows</span>
+        <b>10 and 11, 64-bit</b>
+        <span class="dl-file" data-file>Rekkefly-…-windows-x64-setup.exe</span>
+        <span class="dl-size" data-size></span>
+        <span class="dl-badge">Your system</span>
+      </a>
+      <a class="dl reveal" data-os="linux" data-asset="_amd64\.deb$" href="https://github.com/pvnkmrksk/rekkefly/releases/latest">
+        <span class="dl-os"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="4.5" r="2"/><circle cx="5.5" cy="15.8" r="2"/><circle cx="18.5" cy="15.8" r="2"/></svg>Ubuntu</span>
+        <b>22.04 or newer</b>
+        <span class="dl-file" data-file>rekkefly_…_amd64.deb</span>
+        <span class="dl-size" data-size></span>
+        <span class="dl-badge">Your system</span>
+      </a>
+    </div>
+    <div class="dl-more reveal">
+      <a href="https://github.com/pvnkmrksk/rekkefly/releases/latest" data-repo-link="/releases/latest">Portable folders, checksums and all files</a>
+      <a href="docs/getting-started/install.html">Installation help</a>
+      <a href="docs/development/building.html">Build from source</a>
+      <a href="docs/changelog.html">What's new</a>
+    </div>
+    <div class="install-note reveal" data-install-note hidden></div>
+  </div>
+</section>
+
+<section class="section cta-band">
+  <div class="wrap cta-inner reveal">
+    <h2>Read the docs.</h2>
+    <p>From the first five minutes to every setting: installing, placing the markers, tuning, rigs, outputs, agents and the full reference.</p>
+    <div class="cta">
+      <a class="btn btn-coral btn-large" href="docs/">Open the documentation</a>
+      <a class="btn btn-ghost btn-large" href="https://github.com/pvnkmrksk/rekkefly" data-repo-link>Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="./"><img src="assets/logo.svg" alt="" width="28" height="28"><span>Rekkefly</span></a>
+      <p>ರೆಕ್ಕೆ (<i>rekke</i>) is Kannada for wing. Rekkefly is the new Kinefly: real-time wing tracking for tethered insects.</p>
+    </div>
+    <nav aria-label="Product">
+      <h3>Product</h3>
+      <a href="#download">Download</a>
+      <a href="docs/changelog.html">Changelog</a>
+      <a href="https://github.com/pvnkmrksk/rekkefly/releases" data-repo-link="/releases">Releases</a>
+      <a href="docs/validation.html">Validation</a>
+    </nav>
+    <nav aria-label="Documentation">
+      <h3>Docs</h3>
+      <a href="docs/getting-started/quick-start.html">Quick start</a>
+      <a href="docs/getting-started/markers.html">Placing the markers</a>
+      <a href="docs/guide/outputs.html">Receiving measurements</a>
+      <a href="docs/reference/configuration.html">Configuration</a>
+      <a href="docs/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <nav aria-label="Project">
+      <h3>Project</h3>
+      <a href="https://github.com/pvnkmrksk/rekkefly" data-repo-link>Source code</a>
+      <a href="https://github.com/pvnkmrksk/rekkefly/issues" data-repo-link="/issues">Issues</a>
+      <a href="docs/development/contributing.html">Contributing</a>
+      <a href="https://github.com/pvnkmrksk/rekkefly/security/policy" data-repo-link="/security/policy">Security</a>
+      <a href="docs/citing.html">Citing Rekkefly</a>
+    </nav>
+  </div>
+  <div class="wrap footer-base">
+    <span>MIT License · Built in Rust · <a href="https://github.com/pvnkmrksk/rekkefly/blob/main/CITATION.cff" data-repo-link="/blob/main/CITATION.cff">Cite</a></span>
+    <a href="#top">Back to top ↑</a>
+  </div>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>

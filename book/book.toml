@@ -1,0 +1,29 @@
+[book]
+title = "Rekkefly documentation"
+description = "Rekkefly, the new Kinefly: real-time wing tracking for tethered insects on Mac, Windows and Linux. Installation, marker placement, detectors, rigs, outputs, MCP and every setting."
+authors = ["Pavan Kumar Kaushik"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+smart-punctuation = true
+git-repository-url = "https://github.com/pvnkmrksk/rekkefly"
+edit-url-template = "https://github.com/pvnkmrksk/rekkefly/edit/main/book/{path}"
+additional-css = ["theme/rekkefly.css"]
+additional-js = ["theme/rekkefly.js"]
+# The deployed site-url ("/rekkefly/docs/") is set by the Pages workflow through
+# MDBOOK_OUTPUT__HTML__SITE_URL, so local previews keep working.
+
+[output.html.search]
+limit-results = 20
+use-boolean-and = true
+boost-title = 2
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.print]
+enable = true

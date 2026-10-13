@@ -1,0 +1,199 @@
+/* Rekkefly brand for mdBook: the light theme and a dark theme (shown as
+   "Dark", built on mdBook's "navy"). Colours follow the app icon: ink
+   #122329, wing #1f5c66, coral #ff7059, tile #f4f8f5 → #d3e3de. */
+
+:root {
+  --content-max-width: 820px;
+  --sidebar-target-width: 290px;
+  --menu-bar-height: 56px;
+  --mono-font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --code-font-size: 0.86em;
+  --rk-ink: #122329;
+  --rk-wing: #1f5c66;
+  --rk-coral: #ff7059;
+  --rk-left: #e5484d;
+  --rk-right: #2f9e44;
+  --rk-radius: 12px;
+}
+
+.light, html:not(.js) {
+  --bg: #fcfdfc;
+  --fg: #1b2a2f;
+  --sidebar-bg: #f1f6f4;
+  --sidebar-fg: #2f444a;
+  --sidebar-non-existant: #9aa9a6;
+  --sidebar-active: #c2412d;
+  --sidebar-spacer: #dfe9e5;
+  --scrollbar: #9fb1ad;
+  --icons: #5f7378;
+  --icons-hover: #122329;
+  --links: #1a6772;
+  --inline-code-color: #8f2f22;
+  --theme-popup-bg: #f7faf9;
+  --theme-popup-border: #cfdcd7;
+  --theme-hover: #e4eeea;
+  --quote-bg: #f0f6f3;
+  --quote-border: #d3e3de;
+  --table-border-color: #dde8e4;
+  --table-header-bg: #e5efeb;
+  --table-alternate-bg: #f6f9f8;
+  --searchbar-border-color: #c4d3ce;
+  --searchbar-bg: #ffffff;
+  --searchbar-fg: #122329;
+  --searchbar-shadow-color: #c4d3ce;
+  --searchresults-header-fg: #5f7378;
+  --searchresults-border-color: #c4d3ce;
+  --searchresults-li-bg: #eef5f2;
+  --search-mark-bg: #ffd0c6;
+  --sidebar-header-border-color: #ff7059;
+  --rk-surface: #ffffff;
+  --rk-muted: #5c6f74;
+  --rk-line: #dbe6e2;
+  --rk-code-bg: #f3f7f5;
+  --rk-blur: #1f5c66;
+  --rk-body: #122329;
+  --rk-shadow: 0 1px 2px rgba(18, 35, 41, 0.06), 0 8px 24px rgba(18, 35, 41, 0.07);
+}
+
+.navy {
+  --bg: #0d1a1f;
+  --fg: #d4e0dc;
+  --sidebar-bg: #0a151a;
+  --sidebar-fg: #b4c5c1;
+  --sidebar-non-existant: #5d706f;
+  --sidebar-active: #ff8a76;
+  --sidebar-spacer: #18292f;
+  --scrollbar: #3b5157;
+  --icons: #7f9894;
+  --icons-hover: #e9f1ee;
+  --links: #7cc8d2;
+  --inline-code-color: #ffb4a6;
+  --theme-popup-bg: #102127;
+  --theme-popup-border: #23393f;
+  --theme-hover: #182c33;
+  --quote-bg: #10232a;
+  --quote-border: #1d363e;
+  --table-border-color: #1c3037;
+  --table-header-bg: #17303a;
+  --table-alternate-bg: #0f2026;
+  --searchbar-border-color: #2c454c;
+  --searchbar-bg: #10232a;
+  --searchbar-fg: #e9f1ee;
+  --searchbar-shadow-color: #2c454c;
+  --searchresults-header-fg: #8ea6a2;
+  --searchresults-border-color: #2c454c;
+  --searchresults-li-bg: #132a31;
+  --search-mark-bg: #8c3b2f;
+  --sidebar-header-border-color: #ff7059;
+  --rk-surface: #10222a;
+  --rk-muted: #93a8a4;
+  --rk-line: #1e353c;
+  --rk-code-bg: #0a171c;
+  --rk-blur: #7cc8d2;
+  --rk-body: #d4e0dc;
+  --rk-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.25);
+  --copy-button-filter: invert(62%) sepia(9%) saturate(400%) hue-rotate(120deg);
+  --copy-button-filter-hover: invert(70%) sepia(60%) saturate(800%) hue-rotate(320deg);
+}
+
+/* Only the two branded themes are offered. */
+#mdbook-theme-list li:has(#mdbook-theme-rust),
+#mdbook-theme-list li:has(#mdbook-theme-coal),
+#mdbook-theme-list li:has(#mdbook-theme-ayu) { display: none; }
+
+html { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-feature-settings: "cv11", "ss01"; }
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+.content { line-height: 1.65; }
+.content main { font-size: 1.62rem; }
+.content p, .content li { color: var(--fg); }
+.content h1, .content h2, .content h3, .content h4 { font-weight: 750; letter-spacing: -0.018em; line-height: 1.25; }
+.content h1 { font-size: 2.35em; margin-block-start: 0.6em; margin-block-end: 0.5em; }
+.content h2 { font-size: 1.5em; margin-block-start: 2.1em; padding-block-start: 0.6em; border-block-start: 1px solid var(--rk-line); }
+.content h3 { font-size: 1.18em; margin-block-start: 1.8em; }
+.content h1:first-child + p, .lede { font-size: 1.12em; color: var(--rk-muted); }
+.lede strong { color: var(--fg); }
+.content a { text-decoration: none; border-block-end: 1px solid color-mix(in srgb, var(--links) 35%, transparent); transition: border-color 0.15s, color 0.15s; }
+.content a:hover { border-block-end-color: var(--links); }
+.content .header, .content .header:hover, .content a:has(img) { border: 0; }
+
+/* Code */
+.content :not(pre) > code { background: var(--rk-code-bg); border: 1px solid var(--rk-line); border-radius: 6px; padding: 0.08em 0.36em; font-size: 0.86em; }
+.content pre { border-radius: var(--rk-radius); border: 1px solid var(--rk-line); }
+.content pre > code.hljs, .content pre > code { background: var(--rk-code-bg); padding: 1em 1.1em; }
+
+/* Tables */
+.content table { border-collapse: separate; border-spacing: 0; border: 1px solid var(--table-border-color); border-radius: var(--rk-radius); overflow: hidden; margin: 1.4em 0; font-size: 0.93em; display: table; width: 100%; }
+.content table thead td, .content table thead th { font-weight: 650; border: 0; border-block-end: 1px solid var(--table-border-color); }
+.content table td, .content table th { border: 0; border-block-start: 1px solid var(--table-border-color); padding: 0.55em 0.8em; vertical-align: top; }
+.content table tbody tr:first-child td { border-block-start: 0; }
+.table-wrapper { overflow-x: auto; }
+
+/* Quotes and callouts */
+.content blockquote { border-inline-start: 3px solid var(--rk-coral); border-block: 0; border-inline-end: 0; border-radius: 0 var(--rk-radius) var(--rk-radius) 0; background: var(--quote-bg); padding: 0.4em 1.1em; margin: 1.4em 0; }
+
+/* Images and media */
+.content img, .hero-media video { max-width: 100%; border-radius: var(--rk-radius); box-shadow: var(--rk-shadow); }
+.content picture img { box-shadow: none; }
+.hero-media { margin: 1.6em 0 0.6em; }
+.hero-media video { width: 100%; height: auto; display: block; background: #0b1316; }
+
+/* Cards for "where to start" style link grids */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 1.4em 0; }
+.card-grid a { display: block; border: 1px solid var(--rk-line); border-radius: var(--rk-radius); padding: 14px 16px; background: var(--rk-surface); color: var(--fg); transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+.card-grid a:hover { transform: translateY(-2px); box-shadow: var(--rk-shadow); border-color: var(--rk-coral); }
+.card-grid strong { display: block; margin-block-end: 4px; }
+.card-grid span { color: var(--rk-muted); font-size: 0.92em; }
+
+/* Inline SVG figures that follow the theme */
+svg.figure { width: 100%; height: auto; display: block; margin: 1.4em 0; background: var(--rk-surface); border: 1px solid var(--rk-line); border-radius: var(--rk-radius); font-family: inherit; }
+svg.figure .g-sector { fill: none; stroke-width: 2; stroke-dasharray: 5 4; }
+svg.figure .g-left { stroke: var(--rk-left); }
+svg.figure .g-right { stroke: var(--rk-right); }
+svg.figure .g-blur { stop-color: var(--rk-blur); }
+svg.figure .g-body { fill: var(--rk-body); opacity: 0.88; }
+svg.figure .g-axis { stroke: var(--rk-muted); stroke-width: 1.2; stroke-dasharray: 2 5; }
+svg.figure .g-zero { stroke: var(--rk-muted); stroke-width: 1.4; stroke-dasharray: 6 5; }
+svg.figure .g-edge { stroke: var(--rk-coral); stroke-width: 4; stroke-linecap: round; }
+svg.figure .g-angle { fill: none; stroke: var(--fg); stroke-width: 1.6; }
+svg.figure .g-hinge { fill: var(--rk-coral); stroke: var(--rk-surface); stroke-width: 2; }
+svg.figure .g-dot { fill: var(--rk-surface); stroke: var(--rk-left); stroke-width: 2; }
+svg.figure .g-head { fill: #d63384; }
+svg.figure .g-tail { fill: #22b8cf; }
+svg.figure .g-label { fill: var(--fg); font-size: 13px; font-weight: 600; }
+svg.figure .g-small { fill: var(--rk-muted); font-size: 12px; }
+svg.figure .g-strong { font-size: 16px; font-weight: 750; }
+svg.figure .g-coral { fill: var(--rk-coral); }
+svg.figure .g-red { fill: var(--rk-left); }
+svg.figure .g-green { fill: var(--rk-right); }
+
+/* Menu bar: the brand links back to the website */
+.menu-bar { border-block-end: 1px solid var(--rk-line); backdrop-filter: saturate(1.4) blur(8px); }
+.menu-title { font-weight: 700; letter-spacing: -0.01em; font-size: 2rem; }
+.menu-title a.rk-home { color: var(--fg); text-decoration: none; display: inline-flex; align-items: center; gap: 9px; }
+.menu-title a.rk-home img { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
+.menu-title .rk-badge { font-size: 1.05rem; line-height: 1.5; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rk-muted); border: 1px solid var(--rk-line); border-radius: 999px; padding: 1px 9px; }
+.right-buttons a.rk-download { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; margin-inline-start: 6px; border-radius: 999px; background: var(--rk-coral); color: #1c0d0a; font-weight: 650; font-size: 1.4rem; text-decoration: none; }
+.right-buttons a.rk-download:hover { filter: brightness(1.05); color: #1c0d0a; }
+@media (max-width: 620px) { .right-buttons a.rk-download, .menu-title .rk-badge { display: none; } }
+
+/* Sidebar */
+.sidebar { font-size: 1.45rem; }
+.sidebar .sidebar-scrollbox { padding: 18px 14px; }
+.chapter li.part-title { font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; color: var(--rk-muted); margin-block: 1.6em 0.4em; }
+.chapter li a.active { font-weight: 650; }
+
+/* Footer added by rekkefly.js */
+.rk-footer { margin: 4em 0 1em; padding-block-start: 1.2em; border-block-start: 1px solid var(--rk-line); color: var(--rk-muted); font-size: 0.86em; display: flex; flex-wrap: wrap; gap: 0.4em 1.4em; justify-content: space-between; }
+.rk-footer a { color: var(--rk-muted); border: 0; }
+.rk-footer a:hover { color: var(--links); }
+.rk-footer nav { display: flex; flex-wrap: wrap; gap: 0.4em 1.2em; }
+
+/* Navigation arrows */
+.nav-chapters { color: var(--icons); }
+.nav-chapters:hover { color: var(--rk-coral); background: transparent; }
+
+/* Charts drawn for light and dark backgrounds follow the chosen theme. */
+.only-dark { display: none; }
+.navy .only-dark { display: inline; }
+.navy .only-light { display: none; }
+.content img.only-light, .content img.only-dark { box-shadow: none; }

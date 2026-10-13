@@ -40,7 +40,7 @@ Section "Rekkefly"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "Publisher" "pvnkmrksk"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "DisplayIcon" "$INSTDIR\rekkefly.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "URLInfoAbout" "https://github.com/pvnkmrksk/rekke"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "URLInfoAbout" "https://pvnkmrksk.github.io/rekkefly/"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rekkefly" "NoRepair" 1
 SectionEnd
