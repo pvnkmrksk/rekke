@@ -105,16 +105,21 @@
       </div>
       <p class="meta"><span data-hero-meta>Free and open source · macOS · Windows · Linux</span></p>
     </div>
-    <figure class="hero-visual reveal" aria-label="An animated tethered fly: both wings beat inside their tracking sectors, and Rekkefly's leading edges follow them while the legs move">
-      <div class="stage">
-        <canvas id="hero-canvas" width="600" height="540" role="img" aria-label="Animated illustration of Rekkefly tracking a tethered fly"></canvas>
+    <figure class="hero-visual reveal">
+      <div class="footage" data-footage="tracking">
+        <video poster="docs/media/moth-tracking.jpg" muted loop playsinline autoplay preload="auto" aria-label="Real footage of a tethered Bogong moth filmed from above, with Rekkefly's wing sectors and the leading edge it reports on each wing drawn on top">
+          <source src="docs/media/moth-tracking.mp4" type="video/mp4">
+          <source src="docs/media/moth-tracking.webm" type="video/webm">
+        </video>
+        <button class="play" type="button" aria-label="Play the video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
         <div class="readout" aria-hidden="true">
-          <span><i class="sw sw-l"></i>L <b id="ro-l">+0.0°</b></span>
-          <span><i class="sw sw-r"></i>R <b id="ro-r">+0.0°</b></span>
-          <span><i class="sw sw-d"></i>L − R <b id="ro-d">+0.0°</b></span>
+          <span><i class="sw sw-l"></i>L <b data-angle="left">—</b></span>
+          <span><i class="sw sw-r"></i>R <b data-angle="right">—</b></span>
+          <span><i class="sw sw-d"></i>L − R <b data-angle="diff">—</b></span>
         </div>
       </div>
-      <figcaption>The leading edge of each wing's blur (coral) is tracked inside an annular sector around its hinge, every frame, while the legs and antennae are ignored.</figcaption>
+      <div class="trace" aria-hidden="true"><canvas data-trace width="600" height="96"></canvas><span>L − R · last 4 s</span></div>
+      <figcaption>A real tethered Bogong moth at 30 fps, exactly as filmed. On top: each wing's sector and the leading edge Rekkefly reports, and its measurement of every frame. The wingbeat is faster than the camera, so L and R jump between frames while L − R stays steady.</figcaption>
     </figure>
   </div>
 </section>
@@ -125,22 +130,6 @@
     <div class="stat reveal"><b><span class="count" data-to="3">3</span> <small>of 900</small></b><span>moth frames where painted antennae moved L − R (classic: 489)</span></div>
     <div class="stat reveal"><b><span class="count" data-to="6">6</span>%</b><span>of one CPU core for a 30 fps rig</span></div>
     <div class="stat reveal"><b><span class="count" data-to="15">15</span></b><span>MCP tools for AI agents</span></div>
-  </div>
-</section>
-
-<section class="section" id="footage">
-  <div class="wrap split">
-    <div class="split-copy reveal">
-      <p class="eyebrow">Real footage</p>
-      <h2>On a real Bogong moth.</h2>
-      <p>Every download includes 30 seconds of a tethered Bogong moth, with antennae and legs right beside the wing sectors, one faint wing, and a wingbeat faster than the camera. With no camera connected, Rekkefly plays it with its own markers, so you can learn the app in minutes.</p>
-      <p>The debug traces show the left wing, the right wing and L − R, and the angular profile with legs and antennae removed. Each frame catches a different moment of the wingbeat, so L and R swing while L − R stays steady.</p>
-      <a class="link-arrow" href="docs/getting-started/bogong-moth.html">About the moth example <span aria-hidden="true">→</span></a>
-    </div>
-    <div class="media reveal">
-      <video src="docs/media/bogong-moth-tracking.mp4" poster="docs/media/bogong-moth-tracking.jpg" muted loop playsinline preload="none" data-autoplay aria-label="Screen recording: Rekkefly tracking the Bogong moth, with the debug traces open"></video>
-      <button class="play" type="button" aria-label="Play the video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
-    </div>
   </div>
 </section>
 
@@ -205,27 +194,26 @@
     <div class="section-head reveal">
       <p class="eyebrow">How it works</p>
       <h2>Legs are sharp. Wings are broad.</h2>
-      <p class="section-lede">A beating wing leaves a translucent stroke envelope tens of degrees wide; its leading edge is the stroke amplitude. A leg or an antenna is narrow, and because it is in focus, its edges are sharper than the wing's. A detector that reports the sharpest edge jumps onto it. Rekkefly ranks each edge by the broad blur shoulder behind it. Try it below.</p>
+      <p class="section-lede">A beating wing leaves a translucent stroke envelope tens of degrees wide; its leading edge is the stroke amplitude. A leg or an antenna is narrow, and because it is in focus, its edges are sharper than the wing's. A detector that reports the sharpest edge jumps onto it. Rekkefly ranks each edge by the broad blur shoulder behind it.</p>
     </div>
-    <div class="explainer reveal">
-      <div class="explainer-plot">
-        <canvas id="explainer-canvas" width="900" height="380" role="img" aria-label="An angular profile across one wing sector: the broad wing blur and a narrow leg. Markers show where the classic detector and Rekkefly place the leading edge."></canvas>
+    <figure class="compare-video reveal">
+      <div class="compare-labels" aria-hidden="true">
+        <span class="lab-classic">Classic strongest edge</span>
+        <span class="lab-rekkefly">Rekkefly</span>
       </div>
-      <div class="explainer-controls">
-        <label>Leg position <output id="leg-pos-out">80°</output>
-          <input type="range" id="leg-pos" min="2" max="118" step="0.5" value="80">
-        </label>
-        <label>Leg darkness <output id="leg-dark-out">0.70</output>
-          <input type="range" id="leg-dark" min="0" max="1.2" step="0.05" value="0.7">
-        </label>
-        <label class="check"><input type="checkbox" id="leg-animate" checked> Move the leg</label>
-        <div class="verdicts" aria-live="polite">
-          <div class="verdict verdict-classic"><span>Classic (strongest edge)</span><b id="v-classic">—</b></div>
-          <div class="verdict verdict-rekkefly"><span>Rekkefly</span><b id="v-rekkefly">—</b></div>
-        </div>
-        <p class="note">One radial band, simplified. Rekkefly also takes the median across radial bands, which out-votes a leg present at only some radii. <a href="docs/tracking/detectors.html">The full method</a>.</p>
+      <div class="footage footage-wide" data-footage="antennae">
+        <video poster="docs/media/moth-antennae.jpg" muted loop playsinline preload="none" aria-label="The real moth footage with two thin lines painted on, like antennae. Left: the classic detector's edges jump onto the lines. Right: Rekkefly's stay on the wings.">
+          <source src="docs/media/moth-antennae.mp4" type="video/mp4">
+          <source src="docs/media/moth-antennae.webm" type="video/webm">
+        </video>
+        <button class="play" type="button" aria-label="Play the video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
       </div>
-    </div>
+      <div class="tally" aria-live="off">
+        <div class="tally-cell tally-classic"><span>Frames where the antennae moved L − R by more than 5°</span><b><span data-tally="classic">0</span> <small>of <span data-tally="seen">0</span></small></b></div>
+        <div class="tally-cell tally-rekkefly"><span>Frames where the antennae moved L − R by more than 5°</span><b><span data-tally="rekkefly">0</span> <small>of <span data-tally="seen">0</span></small></b></div>
+      </div>
+      <figcaption>The same real footage with two thin bright lines painted on, sweeping from the head through both wing sectors like antennae. Each detector is compared with its own result on the clean frame. Over the whole clip: classic 489 of 900 frames, Rekkefly 3. <a href="docs/tracking/evidence.html">More evidence</a>.</figcaption>
+    </figure>
     <ol class="steps">
       <li class="reveal"><b>Sample</b><span>Each sector is sampled on a polar grid around its hinge, from positions computed once.</span></li>
       <li class="reveal"><b>Remove narrow</b><span>Features narrower than 5° are opened away in every radial band, however dark.</span></li>

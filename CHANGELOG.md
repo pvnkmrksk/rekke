@@ -23,6 +23,15 @@ change behaviour; such changes are listed under **Changed**).
 
 ### Changed
 - Links point to the renamed repository, `pvnkmrksk/rekkefly`, and the website.
+- The website shows real footage instead of animations: the Bogong moth as
+  filmed, with Rekkefly's tracking drawn on and its measurement of every frame,
+  and the moth with painted antennae, classic detector beside Rekkefly
+  (`scripts/web_media.py` makes both from the example video).
+- Continuous integration is fast for everyday changes. Pull requests and
+  pushes run formatting, lints and tests (Linux, plus tests on Windows and
+  macOS) in a few minutes; website-only changes build only the website. The
+  four-platform release build and installers run for `v*` tags, manual runs,
+  and changes to packaging.
 
 ### Fixed
 - The launchers in the Windows portable ZIP (**Launch Demo**, **Launch All

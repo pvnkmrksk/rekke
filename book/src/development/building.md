@@ -85,4 +85,5 @@ images:
 | Throughput chart | `cargo test --release --test moth throughput -- --ignored --nocapture`, then `python3 scripts/perf_chart.py docs/images/throughput <1> <2> <4> <8>` |
 | Synthetic L − R chart | `REKKEFLY_TRACE=trace.csv cargo test --release --test intrusions trace -- --ignored`, then `python3 scripts/trace_chart.py trace.csv docs/images/lr-trace` |
 | Detector figure | `REKKEFLY_FIGURE=docs/images/legs-classic-vs-robust.png cargo test --release --test intrusions figure -- --ignored` |
-| Screenshots, GIF and video | Under Xvfb, with `--show plots --screenshot PNG --screenshot-after SECONDS` and `ffmpeg -f x11grab` |
+| Website videos of the real moth, and their angles | `python3 scripts/web_media.py` (an ignored test draws the tracking on the raw frames; FFmpeg encodes them) |
+| Screenshots, GIF and video of the window | Under Xvfb, with `--show plots --screenshot PNG --screenshot-after SECONDS` and `ffmpeg -f x11grab` |

@@ -31,8 +31,11 @@ cargo test --locked
 cargo test --locked --no-default-features
 ```
 
-CI runs the same checks on Ubuntu, Windows and macOS (Apple silicon and Intel),
-then builds and smoke-tests every installer.
+CI runs the same checks on every pull request in a few minutes: formatting and
+lints on Linux, and the tests on Linux, Windows and macOS. Changes to only the
+website or docs skip them and just build the site. The slow part, release
+builds and installers for every platform, runs only for releases and for
+changes to the packaging.
 
 ## House rules
 
@@ -87,11 +90,14 @@ or build the site in WSL.
 ## Releasing (maintainers)
 
 1. Update the version in `Cargo.toml`, `CITATION.cff`, `CHANGELOG.md` and
-   `RELEASE_NOTES.md` (the release's notes), and merge to `main`.
+   `RELEASE_NOTES.md` (the release's notes), and merge to `main`. To try the
+   installers first, start **Actions → Build and release → Run workflow** on
+   `main` and download its artifacts.
 2. Tag the merge commit and push the tag:
    `git tag -a v0.7.0 -m "Rekkefly 0.7.0" && git push origin v0.7.0`.
-3. The build workflow tests every platform, then publishes the installers and
-   `SHA256SUMS.txt`. Do not create the release by hand first.
+3. The build workflow (about 20 minutes) tests every platform, builds and
+   smoke-tests the installers, then publishes them with `SHA256SUMS.txt`. Do
+   not create the release by hand first.
 
 By contributing you agree that your contribution is licensed under the
 [MIT License](https://github.com/pvnkmrksk/rekkefly/blob/main/LICENSE), and to follow the [Code of Conduct](https://github.com/pvnkmrksk/rekkefly/blob/main/CODE_OF_CONDUCT.md).

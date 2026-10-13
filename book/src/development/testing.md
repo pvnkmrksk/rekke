@@ -1,8 +1,14 @@
 # Tests
 
-Over 100 tests run on every pull request, on Ubuntu, Windows, and macOS on
-Apple silicon and Intel, with and without the GUI and camera features. CI then
-builds each installer, installs it and runs it.
+Over 100 tests run on every pull request and push to main, on Linux, Windows
+and macOS, in a few minutes (`.github/workflows/ci.yml`). Linux also runs them
+without the GUI and camera features, and checks formatting and lints.
+
+| Workflow | Runs for | Does |
+| --- | --- | --- |
+| `ci.yml` | Pull requests and pushes that change code | Formatting, lints, tests on Linux, Windows and macOS |
+| `pages.yml` | Every pull request and push to main | Builds the website, checks every link, publishes it from main |
+| `build.yml` | `v*` tags, manual runs, pull requests that change packaging | Release builds, installers and smoke tests on Ubuntu, Windows and both Mac architectures; a tag publishes the release |
 
 ```sh
 cargo test --locked                      # everything fast, with the GUI and cameras

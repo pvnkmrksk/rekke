@@ -29,13 +29,15 @@ Rust 2024, one crate (`rekkefly`, library and binary). Before every commit:
 cargo fmt
 cargo clippy --locked --all-targets -- -D warnings
 cargo clippy --locked --all-targets --no-default-features -- -D warnings
-cargo test --locked                       # CI runs debug tests on 4 platforms
+cargo test --locked                       # CI runs these on Linux, Windows and macOS
 cargo test --locked --no-default-features
 ```
 
-CI (`.github/workflows/build.yml`) also builds release packages and runs smoke
-tests on Ubuntu, Windows and both Mac architectures. A `v*` tag publishes a
-release with `RELEASE_NOTES.md` as its notes.
+Workflows: `ci.yml` runs these checks on every pull request and push to main
+(skipped when only the website or docs change); `pages.yml` builds and checks
+the website; `build.yml` builds, packages and smoke-tests the installers on
+Ubuntu, Windows and both Mac architectures, only for `v*` tags (which publish a
+release with `RELEASE_NOTES.md` as its notes), manual runs and packaging changes.
 
 | Area | Where | Checked by |
 | --- | --- | --- |

@@ -5,7 +5,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/pvnkmrksk/rekkefly?label=download&color=ff7059)](https://github.com/pvnkmrksk/rekkefly/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-website-1f5c66)](https://pvnkmrksk.github.io/rekkefly/docs/)
-[![Build and release](https://github.com/pvnkmrksk/rekkefly/actions/workflows/build.yml/badge.svg)](https://github.com/pvnkmrksk/rekkefly/actions/workflows/build.yml)
+[![CI](https://github.com/pvnkmrksk/rekkefly/actions/workflows/ci.yml/badge.svg)](https://github.com/pvnkmrksk/rekkefly/actions/workflows/ci.yml)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-1f5c66)
 ![Written in Rust](https://img.shields.io/badge/written%20in-Rust-b7410e)
 [![Kinefly compatible](https://img.shields.io/badge/ZMQ-Kinefly%20compatible-122329)](#kinefly-compatible-zmq)
@@ -619,7 +619,7 @@ Sampling no longer copies or inverts the whole frame. Each sector is sampled onc
 
 - **Screenshots and GIF:** taken under Xvfb with `--show plots --screenshot PNG --screenshot-after SECONDS` and `ffmpeg -f x11grab`.
 
-**Releases** are built and tested by GitHub Actions on Ubuntu, Windows and both Mac architectures. A `v*` tag publishes the installers after every platform passes. See [VALIDATION.md](VALIDATION.md) for what has and has not been verified.
+**CI** runs formatting, lints and the tests on Linux, Windows and macOS for every pull request, in a few minutes. **Releases** are built, packaged and smoke-tested on Ubuntu, Windows and both Mac architectures; a `v*` tag publishes the installers after every platform passes. See [VALIDATION.md](VALIDATION.md) for what has and has not been verified.
 
 ### Project layout
 
