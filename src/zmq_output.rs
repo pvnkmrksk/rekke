@@ -6,7 +6,8 @@
 //! ZMTP 2.0, such as the NetMQ 4.0.0.x bundled with many Unity projects: a
 //! ZMTP 3.0-only publisher gets no messages through to them. The handshake
 //! follows libzmq's: send the signature, read the peer's, then continue in
-//! ZMTP 3.0 (RFC 23, NULL mechanism) or fall back to ZMTP 2.0 (RFC 15).
+//! ZMTP 3.0 (RFC 23, NULL mechanism) or fall back to ZMTP 2.0 (RFC 15) or,
+//! for libzmq 2.x peers, ZMTP 1.0 (RFC 13).
 //!
 //! Each message is one frame of JSON, byte for byte what the bridge's
 //! `json.dumps` produced under Python 2: the same key order, `", "` and
@@ -161,6 +162,8 @@ enum Protocol {
     V3,
     /// ZMTP 2.0: data frames only.
     V2,
+    /// ZMTP 1.0 (libzmq 2.x): each frame's length, flags included, comes first.
+    V1,
 }
 
 enum Outgoing {
@@ -360,9 +363,16 @@ fn serve(stream: TcpStream, shared: &Shared) {
         return;
     };
     let (queue, outgoing) = sync_channel(HIGH_WATER_MARK);
+    // libzmq 2.x subscribers filter messages themselves and never send
+    // subscriptions, so, as libzmq does, they get every message.
+    let everything = if protocol == Protocol::V1 {
+        vec![Vec::new()]
+    } else {
+        Vec::new()
+    };
     let peer = Arc::new(Peer {
         queue,
-        topics: Mutex::new(Vec::new()),
+        topics: Mutex::new(everything),
         alive: AtomicBool::new(true),
     });
     {
@@ -377,7 +387,7 @@ fn serve(stream: TcpStream, shared: &Shared) {
         let (stream, peer) = (&stream, &*peer);
         let writer = thread::Builder::new()
             .name("zmq-write".into())
-            .spawn_scoped(scope, move || write_loop(stream, outgoing, peer));
+            .spawn_scoped(scope, move || write_loop(stream, protocol, outgoing, peer));
         if writer.is_ok() {
             read_loop(stream, protocol, peer);
         }
@@ -388,7 +398,7 @@ fn serve(stream: TcpStream, shared: &Shared) {
 }
 
 /// Ends when the subscriber is gone or finish() is called.
-fn write_loop(stream: &TcpStream, outgoing: Receiver<Outgoing>, peer: &Peer) {
+fn write_loop(stream: &TcpStream, protocol: Protocol, outgoing: Receiver<Outgoing>, peer: &Peer) {
     let mut out = Polled {
         stream,
         go_on: || peer.alive.load(Ordering::Relaxed),
@@ -398,9 +408,9 @@ fn write_loop(stream: &TcpStream, outgoing: Receiver<Outgoing>, peer: &Peer) {
             break;
         }
         let ok = match item {
-            Outgoing::Data(body) => write_frame(&mut out, 0, &body).is_ok(),
+            Outgoing::Data(body) => write_frame(&mut out, protocol, 0, &body).is_ok(),
             Outgoing::Command(body) if body.is_empty() => true,
-            Outgoing::Command(body) => write_frame(&mut out, COMMAND, &body).is_ok(),
+            Outgoing::Command(body) => write_frame(&mut out, protocol, COMMAND, &body).is_ok(),
         };
         if !ok {
             peer.alive.store(false, Ordering::Relaxed);
@@ -418,7 +428,7 @@ fn read_loop(stream: &TcpStream, protocol: Protocol, peer: &Peer) {
         go_on: alive,
     };
     while alive()
-        && let Ok((flags, body)) = read_frame(&mut input)
+        && let Ok((flags, body)) = read_frame(&mut input, protocol)
     {
         if flags & COMMAND != 0 && protocol == Protocol::V3 {
             let Some((name, data)) = command(&body) else {
@@ -458,30 +468,49 @@ const MORE: u8 = 0x01;
 const LONG: u8 = 0x02;
 const COMMAND: u8 = 0x04;
 
-fn write_frame(stream: &mut impl Write, flags: u8, body: &[u8]) -> std::io::Result<()> {
-    let mut header = Vec::with_capacity(9);
-    if body.len() < 256 {
-        header.extend([flags, body.len() as u8]);
+fn write_frame(
+    stream: &mut impl Write,
+    protocol: Protocol,
+    flags: u8,
+    body: &[u8],
+) -> std::io::Result<()> {
+    let mut frame = Vec::with_capacity(body.len() + 10);
+    if protocol == Protocol::V1 {
+        let length = body.len() as u64 + 1;
+        if length < 255 {
+            frame.push(length as u8);
+        } else {
+            frame.push(0xff);
+            frame.extend(length.to_be_bytes());
+        }
+        frame.push(flags);
+    } else if body.len() < 256 {
+        frame.extend([flags, body.len() as u8]);
     } else {
-        header.push(flags | LONG);
-        header.extend((body.len() as u64).to_be_bytes());
+        frame.push(flags | LONG);
+        frame.extend((body.len() as u64).to_be_bytes());
     }
-    let mut frame = header;
     frame.extend_from_slice(body);
     stream.write_all(&frame)
 }
 
-fn read_frame(stream: &mut impl Read) -> Result<(u8, Vec<u8>)> {
-    let mut flags = [0u8];
-    stream.read_exact(&mut flags)?;
-    let size = if flags[0] & LONG != 0 {
-        let mut size = [0u8; 8];
-        stream.read_exact(&mut size)?;
-        u64::from_be_bytes(size)
+fn read_frame(stream: &mut impl Read, protocol: Protocol) -> Result<(u8, Vec<u8>)> {
+    let mut byte = [0u8];
+    stream.read_exact(&mut byte)?;
+    let (flags, size) = if protocol == Protocol::V1 {
+        let length = match byte[0] {
+            0xff => read_u64(stream)?,
+            short => short as u64,
+        };
+        ensure!(length >= 1, "ZMTP 1.0 frame without flags");
+        stream.read_exact(&mut byte)?;
+        (byte[0], length - 1)
+    } else if byte[0] & LONG != 0 {
+        (byte[0], read_u64(stream)?)
     } else {
-        let mut size = [0u8];
-        stream.read_exact(&mut size)?;
-        size[0] as u64
+        let flags = byte[0];
+        stream.read_exact(&mut byte)?;
+        (flags, byte[0] as u64)
     };
     ensure!(
         size <= MAX_INCOMING_FRAME,
@@ -489,7 +518,13 @@ fn read_frame(stream: &mut impl Read) -> Result<(u8, Vec<u8>)> {
     );
     let mut body = vec![0u8; size as usize];
     stream.read_exact(&mut body)?;
-    Ok((flags[0] & !MORE, body))
+    Ok((flags & !MORE, body))
+}
+
+fn read_u64(stream: &mut impl Read) -> std::io::Result<u64> {
+    let mut bytes = [0u8; 8];
+    stream.read_exact(&mut bytes)?;
+    Ok(u64::from_be_bytes(bytes))
 }
 
 /// A ZMTP 3 command's name and data.
@@ -499,21 +534,33 @@ fn command(body: &[u8]) -> Option<(&[u8], &[u8])> {
 }
 
 /// libzmq's handshake, as the publishing side: ZMTP 3.0 with the NULL
-/// mechanism when the peer supports it, else ZMTP 2.0. ZMTP 1.0 peers
-/// (libzmq 2.x, no signature) are refused.
+/// mechanism when the peer supports it, else ZMTP 2.0, else ZMTP 1.0.
 fn handshake(s: &mut (impl Read + Write)) -> Result<Protocol> {
+    // To a ZMTP 1.0 peer, the signature reads as an empty identity message.
     s.write_all(&[0xff, 0, 0, 0, 0, 0, 0, 0, 1, 0x7f])?;
     let mut signature = [0u8; 10];
-    s.read_exact(&mut signature)?;
-    ensure!(
-        signature[0] == 0xff && signature[9] & 1 == 1,
-        "ZMTP 1.0 peers are not supported"
-    );
+    s.read_exact(&mut signature[..1])?;
+    if signature[0] != 0xff {
+        // A ZMTP 1.0 peer sends no signature, only its identity message:
+        // this byte is its length, flags included.
+        ensure!(signature[0] >= 1, "ZMTP 1.0 identity without flags");
+        s.read_exact(&mut vec![0u8; signature[0] as usize])?;
+        return Ok(Protocol::V1);
+    }
+    s.read_exact(&mut signature[1..])?;
+    if signature[9] & 1 == 0 {
+        // A ZMTP 1.0 identity of 254 bytes or more; byte 9 was its flags.
+        let length = u64::from_be_bytes(signature[1..9].try_into().unwrap());
+        ensure!(
+            (1..=MAX_INCOMING_FRAME).contains(&length),
+            "Malformed ZMTP 1.0 identity"
+        );
+        s.read_exact(&mut vec![0u8; length as usize - 1])?;
+        return Ok(Protocol::V1);
+    }
     s.write_all(&[3])?;
     let mut revision = [0u8];
     s.read_exact(&mut revision)?;
-    // Revision 1 is ZMTP 2.0; 0 would need ZMTP 1.0 framing.
-    ensure!(revision[0] >= 1, "ZMTP 1.0 peers are not supported");
     if revision[0] >= 3 {
         // ZMTP 3.0: minor version, mechanism, as-server, filler.
         let mut rest = [0u8; 53];
@@ -531,8 +578,8 @@ fn handshake(s: &mut (impl Read + Write)) -> Result<Protocol> {
         ready.extend_from_slice(b"Socket-Type");
         ready.extend_from_slice(&3u32.to_be_bytes());
         ready.extend_from_slice(b"PUB");
-        write_frame(s, COMMAND, &ready)?;
-        let (flags, body) = read_frame(s)?;
+        write_frame(s, Protocol::V3, COMMAND, &ready)?;
+        let (flags, body) = read_frame(s, Protocol::V3)?;
         ensure!(flags & COMMAND != 0, "Expected a READY command");
         let (name, mut properties) = command(&body).context("Malformed READY")?;
         ensure!(name == b"READY", "Expected a READY command");
@@ -552,7 +599,13 @@ fn handshake(s: &mut (impl Read + Write)) -> Result<Protocol> {
         }
         Ok(Protocol::V3)
     } else {
-        // ZMTP 2.0: socket types, then each side's identity frame.
+        // ZMTP 2.0 (revision 1), or ZMTP 1.0 framing after a signature
+        // (revision 0): socket types, then each side's identity.
+        let protocol = if revision[0] == 0 {
+            Protocol::V1
+        } else {
+            Protocol::V2
+        };
         s.write_all(&[PUB])?;
         let mut kind = [0u8];
         s.read_exact(&mut kind)?;
@@ -560,9 +613,9 @@ fn handshake(s: &mut (impl Read + Write)) -> Result<Protocol> {
             kind[0] == SUB || kind[0] == XSUB,
             "Only SUB and XSUB sockets may connect to a PUB socket"
         );
-        s.write_all(&[0, 0])?;
-        read_frame(s)?;
-        Ok(Protocol::V2)
+        write_frame(s, protocol, 0, &[])?;
+        read_frame(s, protocol)?;
+        Ok(protocol)
     }
 }
 

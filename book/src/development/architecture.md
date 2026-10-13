@@ -76,7 +76,7 @@ preview textures are refreshed when the UI is drawn.
 | --- | --- |
 | Window | `eframe` / `egui` |
 | Cameras | `nokhwa` (AVFoundation, Media Foundation), `v4l` (Linux) |
-| Outputs | None: the ZMQ publisher (`zmq_output.rs`) speaks ZMTP 2.0 and 3.0 itself, as libzmq does |
+| Outputs | None: the ZMQ publisher (`zmq_output.rs`) speaks ZMTP 3.0, 2.0 and 1.0 itself, as libzmq does |
 | Images and video | `zune-jpeg` (decoding), `jpeg-encoder` (encoding), `image` (PNG) |
 | Configs | `serde`, `toml`, `toml_edit` (comment-preserving writes) |
 | Command line | `clap` |
