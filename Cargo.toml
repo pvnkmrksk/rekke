@@ -25,7 +25,7 @@ serde_json = "1"
 toml = "1.1"
 toml_edit = { version = "0.25", default-features = false, features = ["parse", "display"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
 nokhwa = { version = "0.10.10", default-features = false, features = ["input-native", "decoding"], optional = true }
 tempfile = "3"
 jpeg-encoder = { version = "0.7", features = ["simd"] }
