@@ -192,7 +192,7 @@ pub fn launch(launch: Launch) -> eframe::Result<()> {
         options,
         Box::new(move |cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            cc.egui_ctx.style_mut(|s| {
+            cc.egui_ctx.all_styles_mut(|s| {
                 s.spacing.item_spacing = Vec2::new(8.0, 6.0);
                 s.spacing.button_padding = Vec2::new(8.0, 4.0);
                 s.visuals.panel_fill = Color32::from_rgb(22, 25, 29);
@@ -360,9 +360,9 @@ impl App {
             self.texture = Some(ctx.load_texture("camera", image, egui::TextureOptions::LINEAR));
         }
     }
-    fn toolbar(&mut self, ctx: &egui::Context, state: &State) {
+    fn toolbar(&mut self, ui: &mut egui::Ui, state: &State) {
         let mut changed = false;
-        egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+        egui::Panel::top("toolbar").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(egui::RichText::new("rekkefly").strong().size(16.0));
                 ui.separator();
@@ -993,7 +993,7 @@ impl App {
         self.request_restart();
     }
     fn dropped_files(&mut self, ctx: &egui::Context) {
-        let dropped = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
+        let dropped = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf()));
         if let Some(path) = dropped {
             let (width, height, fps) = self.config.source.dimensions();
             let name = path
@@ -1256,7 +1256,7 @@ impl Drop for App {
     }
 }
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.shutdown.load(Ordering::Relaxed) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -1289,10 +1289,17 @@ impl eframe::App for App {
             self.restart_pending = false;
             self.start();
         }
+        // Keep shutdown and worker notifications responsive when a window is hidden.
+        ctx.request_repaint_after(Duration::from_secs_f64(
+            1.0 / self.config.preview_fps as f64,
+        ));
+    }
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
         let state = self.engine.as_ref().map(Engine::state).unwrap_or_default();
-        self.observe(ctx, &state);
-        self.toolbar(ctx, &state);
-        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+        self.observe(&ctx, &state);
+        self.toolbar(ui, &state);
+        egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 let running = self.engine.as_ref().is_some_and(|e| !e.is_finished());
                 let live = running && state.latest.is_some();
@@ -1363,13 +1370,13 @@ impl eframe::App for App {
             });
         });
         if self.show_diagnostics {
-            egui::TopBottomPanel::bottom("diagnostics").show(ctx, |ui| {
+            egui::Panel::bottom("diagnostics").show(ui, |ui| {
                 self.plots(ui);
             });
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 let full = ui.max_rect();
                 self.camera_view(ui);
                 let mut top = ui.new_child(
@@ -1378,7 +1385,7 @@ impl eframe::App for App {
                 );
                 self.banner(&mut top, &state);
             });
-        self.settings(ctx, &state);
+        self.settings(&ctx, &state);
         if self.config != self.last_autosave {
             if self.config.autosave
                 && self.rig.is_none()
@@ -1393,7 +1400,7 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.title = title;
         }
-        self.dropped_files(ctx);
+        self.dropped_files(&ctx);
         if self.screenshot.is_some()
             && !self.screenshot_requested
             && self.started.elapsed() > self.screenshot_after
@@ -1559,7 +1566,7 @@ mod tests {
                 selected: 0,
                 texture: Some(ctx.load_texture(
                     "test",
-                    egui::ColorImage::new([640, 480], Color32::GRAY),
+                    egui::ColorImage::filled([640, 480], Color32::GRAY),
                     egui::TextureOptions::LINEAR,
                 )),
                 latest: None,
@@ -1586,12 +1593,14 @@ mod tests {
                 events,
                 ..Default::default()
             };
-            let draw = |ctx: &egui::Context, app: &mut App| {
+            let draw = |ui: &mut egui::Ui, app: &mut App| {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
-                    .show(ctx, |ui| app.camera_view(ui));
+                    .show(ui, |ui| app.camera_view(ui));
             };
-            let _ = ctx.run(raw(vec![]), |ctx| draw(ctx, &mut app));
+            ctx.run_ui(raw(vec![]), |ui| draw(ui, &mut app))
+                .textures_delta
+                .clear();
             // Settings still selects Left; directly drag Right's arc or corner.
             let sector = &app.config.tracking.right;
             let (start_deg, span_deg) = (sector.start_deg, sector.span_deg);
@@ -1618,7 +1627,9 @@ mod tests {
                     modifiers: Default::default(),
                 },
             ];
-            let _ = ctx.run(raw(events), |ctx| draw(ctx, &mut app));
+            ctx.run_ui(raw(events), |ui| draw(ui, &mut app))
+                .textures_delta
+                .clear();
             assert!((app.config.tracking.right.outer_radius - 160.0).abs() < 0.01);
             assert!((app.config.tracking.left.outer_radius - 160.0).abs() < 0.01);
             if corner {

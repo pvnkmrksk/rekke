@@ -63,6 +63,13 @@ loudly rather than silently dropping frames.
 - **Every operation is scriptable.** Each GUI action has a command-line or MCP
   equivalent with machine-readable output.
 
+## Native window lifecycle
+
+The eframe/egui 0.36 integration polls worker results and shutdown in
+`App::logic`, including while the window is hidden. `App::ui` builds the panels
+and camera view from the root UI. Tracking stays on the capture worker, while
+preview textures are refreshed when the UI is drawn.
+
 ## Dependencies
 
 | Purpose | Crates |

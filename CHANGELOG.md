@@ -22,6 +22,8 @@ change behaviour; such changes are listed under **Changed**).
   sync with the program.
 
 ### Changed
+- Updated the native GUI to eframe/egui 0.36, retaining direct marker and sector
+  dragging. Shutdown and worker notifications remain responsive in hidden windows.
 - Links point to the renamed repository, `pvnkmrksk/rekkefly`, and the website.
 - The website shows real footage instead of animations: the Bogong moth as
   filmed, with Rekkefly's tracking drawn on and its measurement of every frame,
