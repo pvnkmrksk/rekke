@@ -16,12 +16,12 @@ addresses changed, in **Settings → Instance / output** or the config's
 
 Each rig binds a ZMQ PUB socket (`output.zmq_bind`, default `tcp://*:9871`; the
 second rig `9872`). Subscribe to everything (`b""`) and receive **one UTF-8 JSON
-frame** per camera frame, exactly as the
+frame** per camera frame, byte for byte as the
 [Kinefly Docker bridge](https://github.com/pvnkmrksk/Kinefly_Docker/blob/main/ros_zmq_bridge.py)
 sends it:
 
 ```json
-{"x":0.25,"y":-0.5,"z":0.0,"yaw":0.75,"pitch":0.0,"roll":0.0,"frame_number":77,"timestamp_unix":1700000000.125}
+{"timestamp_unix": 1700000000.125, "pitch": 0.0, "y": -0.5, "x": 0.25, "yaw": 0.75, "z": 0.0, "roll": 0.0, "frame_number": 77}
 ```
 
 | Field | Meaning |
@@ -36,10 +36,13 @@ sends it:
 A missing angle is sent as `0.0`, as the bridge did. Use the full measurements
 when you need to tell a missing angle from a real zero.
 
-Rekkefly replaces the bridge: don't run both on the same port. ZMQ PUB/SUB drops
-messages sent before a subscriber connects, and never blocks tracking. A
-subscriber that stalls for 500 ms stops the run with an error, rather than
-letting messages pile up.
+Rekkefly replaces the bridge: don't run both on the same port. The publisher
+speaks the ZeroMQ wire protocol the way libzmq does, ZMTP 3.0 or 2.0 as the
+subscriber needs, so every ZeroMQ library works: pyzmq, libzmq, PlotJuggler,
+and NetMQ in Unity, including older NetMQ releases that only speak ZMTP 2.0.
+ZMQ PUB/SUB drops messages sent before a subscriber connects, and never
+blocks tracking: like libzmq, a subscriber more than 1,000 messages behind
+misses messages rather than slowing the rig down.
 
 A receiver in Python (`python3 -m pip install pyzmq`):
 

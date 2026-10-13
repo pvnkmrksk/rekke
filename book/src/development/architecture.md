@@ -14,7 +14,7 @@ line. The GUI and the MCP server are clients of the same library.
         │  8-bit gray frame, sequence number, arrival time
         ├──► tracker.rs: sample each sector, find edges ──► Measurement
         │        │
-        │        ├──► ZMQ publisher (zmq_output.rs, its own thread)
+        │        ├──► ZMQ publisher (zmq_output.rs, a thread per subscriber)
         │        ├──► UDP sender (output.rs)
         │        ├──► JSONL file (measurement_log.rs)
         │        └──► subscribers: GUI plots, MCP `measure`
@@ -69,7 +69,7 @@ loudly rather than silently dropping frames.
 | --- | --- |
 | Window | `eframe` / `egui` |
 | Cameras | `nokhwa` (AVFoundation, Media Foundation), `v4l` (Linux) |
-| Outputs | `zeromq` (pure Rust ZMQ), `tokio` |
+| Outputs | None: the ZMQ publisher (`zmq_output.rs`) speaks ZMTP 2.0 and 3.0 itself, as libzmq does |
 | Images and video | `zune-jpeg` (decoding), `jpeg-encoder` (encoding), `image` (PNG) |
 | Configs | `serde`, `toml`, `toml_edit` (comment-preserving writes) |
 | Command line | `clap` |

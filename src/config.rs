@@ -501,15 +501,8 @@ impl Config {
             );
         }
         if self.output.zmq_enabled {
-            let endpoint: zeromq::Endpoint = self
-                .output
-                .zmq_bind
-                .parse()
+            crate::zmq_output::parse_endpoint(&self.output.zmq_bind)
                 .context("Invalid output.zmq_bind")?;
-            ensure!(
-                matches!(endpoint, zeromq::Endpoint::Tcp(_, port) if port > 0),
-                "ZMQ bind must be tcp://host:nonzero-port"
-            );
         }
         ensure!(
             !self.recording.directory.trim().is_empty(),
