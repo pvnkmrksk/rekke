@@ -293,14 +293,14 @@
       <li class="reveal tl-now">
         <span class="tl-tag">Rekkefly</span>
         <h3>The next step</h3>
-        <p>A native app, written from scratch in Rust, that sends the bridge's exact message. Point your subscriber at it and it keeps working.</p>
+        <p>A native app, written from scratch in Rust, that sends the bridge's message byte for byte, to any ZeroMQ library, Unity's NetMQ included. Point your subscriber at it and it keeps working.</p>
         <a href="docs/kinefly.html">Coming from Kinefly</a>
       </li>
     </ol>
     <div class="code-card reveal">
       <div class="code-head"><span>ZMQ, tcp://*:9871: one message per frame</span><button class="copy" type="button" data-copy="zmq-msg">Copy</button></div>
-      <pre id="zmq-msg"><code>{"x": 0.25, "y": -0.5, "z": 0.0, "yaw": 0.75, "pitch": 0.0, "roll": 0.0,
- "frame_number": 77, "timestamp_unix": 1700000000.125}</code></pre>
+      <pre id="zmq-msg"><code>{"timestamp_unix": 1700000000.125, "pitch": 0.0, "y": -0.5, "x": 0.25,
+ "yaw": 0.75, "z": 0.0, "roll": 0.0, "frame_number": 77}</code></pre>
     </div>
   </div>
 </section>

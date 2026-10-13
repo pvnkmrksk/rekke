@@ -101,6 +101,15 @@ possible; live sources report their rate.)
 | `frame_number` | `sequence` |
 | `timestamp_unix` | `timestamp_ns` in seconds |
 
+The message is one ZMQ frame of JSON, written byte for byte as the Kinefly
+Docker bridge writes it: the keys in the order `timestamp_unix`, `pitch`, `y`,
+`x`, `yaw`, `z`, `roll`, `frame_number`, with `", "` and `": "` between them, and
+numbers as Python writes them (`0.0`, `1e-05`):
+
+```json
+{"timestamp_unix": 1700000000.125, "pitch": 0.0, "y": -0.5, "x": 0.25, "yaw": 0.75, "z": 0.0, "roll": 0.0, "frame_number": 77}
+```
+
 ## CSV from `rekkefly track`
 
 | Column | Meaning |

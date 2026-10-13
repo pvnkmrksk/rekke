@@ -27,8 +27,6 @@ toml_edit = { version = "0.22", default-features = false, features = ["parse", "
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"], optional = true }
 nokhwa = { version = "0.10.10", default-features = false, features = ["input-native", "decoding"], optional = true }
-zeromq = { version = "0.6", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
-tokio = { version = "1", features = ["rt", "sync", "time", "net"] }
 tempfile = "3"
 jpeg-encoder = { version = "0.7", features = ["simd"] }
 zune-jpeg = "0.5"
@@ -36,6 +34,11 @@ zune-core = "0.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 v4l = { version = "0.14", optional = true }
+
+# A second, independent ZMTP 3 implementation for testing the ZMQ output.
+[dev-dependencies]
+zeromq = { version = "0.6", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "net"] }
 
 # Image codecs are far too slow unoptimized; keep them fast in debug builds
 # and tests (the Bogong moth tests decode real MJPEG video).

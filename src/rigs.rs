@@ -170,13 +170,11 @@ impl RigSet {
                 );
             }
             if config.output.zmq_enabled {
-                let endpoint: zeromq::Endpoint = config.output.zmq_bind.parse()?;
-                if let zeromq::Endpoint::Tcp(_, port) = endpoint {
-                    ensure!(
-                        zmq.insert(port),
-                        "Rigs share ZMQ port {port}; give each rig its own zmq_port"
-                    );
-                }
+                let (_, port) = crate::zmq_output::parse_endpoint(&config.output.zmq_bind)?;
+                ensure!(
+                    zmq.insert(port),
+                    "Rigs share ZMQ port {port}; give each rig its own zmq_port"
+                );
             }
             if !demo && let SourceConfig::Camera { device, .. } = &config.source {
                 let key = match crate::camera::parse(device) {

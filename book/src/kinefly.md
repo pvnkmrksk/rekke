@@ -45,11 +45,11 @@ and drops the stack.
   toward the head, in radians on the wire.
 - **The measure.** The leading edge of the stroke envelope, from the angular
   intensity gradient (`primary_edge = "toward_head"`).
-- **The message.** The bridge's exact fields and values:
+- **The message.** Byte for byte what the bridge sends: the same fields and
+  values, and Python 2's `json.dumps` key order, spacing and number format:
 
   ```json
-  {"x": 0.25, "y": -0.5, "z": 0.0, "yaw": 0.75, "pitch": 0.0, "roll": 0.0,
-   "frame_number": 77, "timestamp_unix": 1700000000.125}
+  {"timestamp_unix": 1700000000.125, "pitch": 0.0, "y": -0.5, "x": 0.25, "yaw": 0.75, "z": 0.0, "roll": 0.0, "frame_number": 77}
   ```
 
   `x` and `y` are the left and right wing angles, `yaw = x − y`, on

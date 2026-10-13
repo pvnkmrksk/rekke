@@ -32,8 +32,20 @@ change behaviour; such changes are listed under **Changed**).
   macOS) in a few minutes; website-only changes build only the website. The
   four-platform release build and installers run for `v*` tags, manual runs,
   and changes to packaging.
+- A slow ZMQ subscriber no longer stops the run. As with libzmq, a subscriber
+  more than 1,000 messages behind misses messages, and tracking never waits.
+  Subscriptions to a topic prefix are honoured.
 
 ### Fixed
+- **Unity (NetMQ) received no ZMQ messages**, while PlotJuggler and Python did.
+  Older NetMQ releases, such as 4.0.0.1 in many Unity projects, speak only the
+  ZMTP 2.0 wire protocol, and the ZeroMQ library Rekkefly used spoke only
+  ZMTP 3. Rekkefly now has its own publisher that negotiates ZMTP 3.0 or 2.0 as
+  libzmq does, so every ZeroMQ library receives the messages. Tested with
+  NetMQ 4.0.0.1 and 4.0.4.4, pyzmq (libzmq 4.3.5) and zmq.rs.
+- The ZMQ message is now byte for byte the Kinefly Docker bridge's: the same
+  key order, spacing and number format (`{"timestamp_unix": …, "pitch": 0.0,
+  …}`), so receivers that compare or parse text exactly see no difference.
 - The launchers in the Windows portable ZIP (**Launch Demo**, **Launch All
   Rigs** and the others) ran `rekke.exe`, which no longer exists. They now run
   `rekkefly.exe`. The installer was not affected.
