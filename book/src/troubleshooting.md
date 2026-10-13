@@ -54,7 +54,7 @@ Find your symptom below. If it is not here, search the
 | --- | --- |
 | **"Outputs off: Bind output port …"** | Another program or rig uses that port, for example the old Kinefly bridge. Tracking continues in the window. Choose another port in **Settings → Instance / output** |
 | **My ZMQ subscriber receives nothing** | Subscribe to everything (`b""`), connect to the rig computer's address and port, and allow the port through its firewall. Messages sent before the subscriber connected are not delivered |
-| **Unity (NetMQ) receives nothing, while PlotJuggler or Python do** (0.6.0) | Rekkefly 0.6.0 spoke only ZMTP 3, and older NetMQ releases (3.x and 4.0.0.x, common in Unity projects) speak ZMTP 2.0, so the connection failed silently. Install 0.6.1 or newer, which negotiates like libzmq: the Unity build needs no change |
+| **Unity (NetMQ) receives nothing, while PlotJuggler or Python do** (0.6.0) | Rekkefly 0.6.0 spoke only ZMTP 3, and older NetMQ releases (3.x and 4.0.0.x, common in Unity projects) speak ZMTP 2.0, so the connection failed silently. Install 0.6.2 or newer, which negotiates like libzmq: the Unity build needs no change |
 | **My receiver misses messages** | ZMQ drops messages for a subscriber more than 1,000 behind, so tracking never waits. Read continuously, in a thread of its own if needed |
 | **UDP receiver gets nothing** | Check that `output.target` is the receiver's address and port, and that the receiver binds that port |
 

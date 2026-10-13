@@ -69,10 +69,10 @@ This README is the tour. The [documentation](https://pvnkmrksk.github.io/rekkefl
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Mac, Apple silicon (M1 and later) | `Rekkefly-0.6.1-macos-arm64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
-| Mac, Intel | `Rekkefly-0.6.1-macos-x64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
-| Windows 10/11 | `Rekkefly-0.6.1-windows-x64-setup.exe` | Run it. No administrator rights needed |
-| Ubuntu 22.04 or newer | `rekkefly_0.6.1_amd64.deb` | `sudo apt install ./rekkefly_0.6.1_amd64.deb` |
+| Mac, Apple silicon (M1 and later) | `Rekkefly-0.6.2-macos-arm64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Mac, Intel | `Rekkefly-0.6.2-macos-x64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Windows 10/11 | `Rekkefly-0.6.2-windows-x64-setup.exe` | Run it. No administrator rights needed |
+| Ubuntu 22.04 or newer | `rekkefly_0.6.2_amd64.deb` | `sudo apt install ./rekkefly_0.6.2_amd64.deb` |
 
 On a Mac, the first launch may be blocked because the app is not notarized. See [Mac: first launch](#mac-first-launch).
 
@@ -567,7 +567,7 @@ The installer puts Rekkefly under `%LOCALAPPDATA%\Programs\Rekkefly`, with Start
 
 ### Ubuntu
 
-`sudo apt install ./rekkefly_0.6.1_amd64.deb` puts `rekkefly` on your PATH and adds a menu entry with **Start all rigs** and **Open the Bogong moth example** actions. Configs live in `~/.config/rekkefly/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
+`sudo apt install ./rekkefly_0.6.2_amd64.deb` puts `rekkefly` on your PATH and adds a menu entry with **Start all rigs** and **Open the Bogong moth example** actions. Configs live in `~/.config/rekkefly/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
 
 ### Portable folders
 

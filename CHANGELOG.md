@@ -7,14 +7,36 @@ change behaviour; such changes are listed under **Changed**).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-13
+
+**0.6.2 is the release 0.6.1 was meant to be.** The `v0.6.1` tag was made
+before the release changes were merged, so its downloads are named 0.6.0,
+report version 0.6.0, show the 0.6.0 release notes, and lack ZMTP 1.0 support.
+Its ZMQ fix for Unity is otherwise the same. Every ZeroMQ subscriber that worked
+with the Kinefly Docker bridge now works with Rekkefly unchanged.
+
+### Added
+- ZMQ subscribers that speak ZMTP 1.0 (libzmq 2.x) are accepted too, as libzmq
+  accepts them. They receive every message, since they filter for themselves.
+- Release builds stop at once when the tag does not match the version in
+  `Cargo.toml`.
+
 ### Changed
 - Updated the native GUI to eframe/egui 0.36, retaining direct marker and sector
   dragging. Shutdown and worker notifications remain responsive in hidden windows.
+- Dependencies: toml 1.1 and toml_edit 0.25; newer GitHub Actions in the
+  workflows.
+
+### Fixed
+- The downloads, `rekkefly --version` and the release notes carry the release's
+  own version.
 
 ## [0.6.1] - 2026-10-13
 
-**Every ZeroMQ subscriber that worked with the Kinefly Docker bridge, Unity
-included, now works with Rekkefly unchanged.**
+**Unity's NetMQ, and every other ZeroMQ subscriber of libzmq 3 or newer, now
+works with Rekkefly unchanged.** This release was tagged before its release
+changes were merged: its downloads are named 0.6.0 and report version 0.6.0.
+Use 0.6.2.
 
 ### Added
 - A website at <https://pvnkmrksk.github.io/rekkefly/>: an animated landing page
@@ -49,10 +71,9 @@ included, now works with Rekkefly unchanged.**
 - **Unity (NetMQ) received no ZMQ messages**, while PlotJuggler and Python did.
   Older NetMQ releases, such as 4.0.0.1 in many Unity projects, speak only the
   ZMTP 2.0 wire protocol, and the ZeroMQ library Rekkefly used spoke only
-  ZMTP 3. Rekkefly now has its own publisher that negotiates ZMTP 3.0, 2.0 or
-  1.0 as libzmq does, so every subscriber that worked with the bridge receives
-  the messages, with no change to the subscriber. Tested with NetMQ 4.0.0.1 and
-  4.0.4.4, pyzmq (libzmq 4.3.5) and zmq.rs.
+  ZMTP 3. Rekkefly now has its own publisher that negotiates ZMTP 3.0 or 2.0 as
+  libzmq does, so these subscribers receive the messages with no change to
+  them. Tested with NetMQ 4.0.0.1 and 4.0.4.4, pyzmq (libzmq 4.3.5) and zmq.rs.
 - The ZMQ message is now byte for byte the Kinefly Docker bridge's: the same
   key order, spacing and number format (`{"timestamp_unix": …, "pitch": 0.0,
   …}`), so receivers that compare or parse text exactly see no difference.
@@ -117,7 +138,8 @@ versions were called Wingtrace.
 - Kinefly Docker-compatible ZMQ output, full UDP measurements, a multi-rig
   launcher, lossless grayscale recording, and a live plot.
 
-[Unreleased]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/pvnkmrksk/rekkefly/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pvnkmrksk/rekkefly/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/pvnkmrksk/rekkefly/compare/v0.5.0...v0.5.1

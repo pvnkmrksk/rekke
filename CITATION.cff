@@ -4,7 +4,7 @@ title: "Rekkefly: the new Kinefly. Real-time wing tracking for tethered insects"
 type: software
 authors:
   - name: "Pavan Kumar Kaushik"
-version: 0.6.1
+version: 0.6.2
 license: MIT
 repository-code: "https://github.com/pvnkmrksk/rekkefly"
 url: "https://pvnkmrksk.github.io/rekkefly/"

@@ -1,6 +1,6 @@
 [package]
 name = "rekkefly"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 description = "Rekkefly, the new Kinefly: real-time wing tracking for tethered insects, with Kinefly-compatible ZMQ output"
 keywords = ["kinefly", "insect-flight", "drosophila", "wing-tracking", "neuroscience"]
