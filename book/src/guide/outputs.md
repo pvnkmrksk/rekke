@@ -37,9 +37,10 @@ A missing angle is sent as `0.0`, as the bridge did. Use the full measurements
 when you need to tell a missing angle from a real zero.
 
 Rekkefly replaces the bridge: don't run both on the same port. The publisher
-speaks the ZeroMQ wire protocol the way libzmq does, ZMTP 3.0 or 2.0 as the
-subscriber needs, so every ZeroMQ library works: pyzmq, libzmq, PlotJuggler,
-and NetMQ in Unity, including older NetMQ releases that only speak ZMTP 2.0.
+speaks the ZeroMQ wire protocol the way libzmq does, ZMTP 3.0, 2.0 or 1.0 as
+the subscriber needs, so every subscriber that worked with the bridge works
+unchanged: pyzmq, libzmq, PlotJuggler, and NetMQ in Unity, including the older
+NetMQ releases (3.x and 4.0.0.x) that only speak ZMTP 2.0.
 ZMQ PUB/SUB drops messages sent before a subscriber connects, and never
 blocks tracking: like libzmq, a subscriber more than 1,000 messages behind
 misses messages rather than slowing the rig down.

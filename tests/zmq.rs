@@ -156,6 +156,48 @@ fn a_zmtp_2_subscriber_like_old_netmq_receives_messages() {
 }
 
 #[test]
+fn a_zmtp_1_subscriber_like_libzmq_2_receives_every_message() {
+    // libzmq 2.x sends no greeting, only its identity message (length 1,
+    // counting the flags; flags 0; no identity), and filters messages itself
+    // instead of subscribing. libzmq publishers, such as the Kinefly Docker
+    // bridge, send it everything.
+    let (mut p, port) = publisher();
+    let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    s.write_all(&[0x01, 0x00]).unwrap();
+    let mut greeting = [0u8; 10];
+    s.read_exact(&mut greeting).unwrap();
+    assert_eq!(
+        greeting,
+        [0xff, 0, 0, 0, 0, 0, 0, 0, 1, 0x7f],
+        "the signature, which reads as an empty identity message"
+    );
+    wait_for(&p, 1);
+    p.send_bytes(b"{\"x\": 1.0}".to_vec());
+    let mut head = [0u8; 2];
+    s.read_exact(&mut head).unwrap();
+    assert_eq!(
+        head,
+        [11, 0],
+        "the length, counting the flags, then the flags"
+    );
+    let mut body = [0u8; 10];
+    s.read_exact(&mut body).unwrap();
+    assert_eq!(&body, b"{\"x\": 1.0}");
+    let long = vec![b'a'; 300];
+    p.send_bytes(long.clone());
+    let mut head = [0u8; 10];
+    s.read_exact(&mut head).unwrap();
+    assert_eq!(head[0], 0xff, "a long length");
+    assert_eq!(u64::from_be_bytes(head[1..9].try_into().unwrap()), 301);
+    assert_eq!(head[9], 0);
+    let mut body = vec![0u8; 300];
+    s.read_exact(&mut body).unwrap();
+    assert_eq!(body, long);
+    p.finish().unwrap();
+}
+
+#[test]
 fn only_matching_subscriptions_receive_and_a_stalled_subscriber_never_blocks() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

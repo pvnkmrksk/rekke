@@ -69,10 +69,10 @@ This README is the tour. The [documentation](https://pvnkmrksk.github.io/rekkefl
 
 | Computer | Download | Install |
 | --- | --- | --- |
-| Mac, Apple silicon (M1 and later) | `Rekkefly-0.6.0-macos-arm64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
-| Mac, Intel | `Rekkefly-0.6.0-macos-x64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
-| Windows 10/11 | `Rekkefly-0.6.0-windows-x64-setup.exe` | Run it. No administrator rights needed |
-| Ubuntu 22.04 or newer | `rekkefly_0.6.0_amd64.deb` | `sudo apt install ./rekkefly_0.6.0_amd64.deb` |
+| Mac, Apple silicon (M1 and later) | `Rekkefly-0.6.1-macos-arm64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Mac, Intel | `Rekkefly-0.6.1-macos-x64.dmg` | Open it and drag **Rekkefly** onto **Applications** |
+| Windows 10/11 | `Rekkefly-0.6.1-windows-x64-setup.exe` | Run it. No administrator rights needed |
+| Ubuntu 22.04 or newer | `rekkefly_0.6.1_amd64.deb` | `sudo apt install ./rekkefly_0.6.1_amd64.deb` |
 
 On a Mac, the first launch may be blocked because the app is not notarized. See [Mac: first launch](#mac-first-launch).
 
@@ -449,7 +449,7 @@ Each rig binds a ZMQ PUB socket (default `tcp://*:9871`, rig B `9872`). Subscrib
 {"timestamp_unix": 1700000000.125, "pitch": 0.0, "y": -0.5, "x": 0.25, "yaw": 0.75, "z": 0.0, "roll": 0.0, "frame_number": 77}
 ```
 
-`x`/`y` are the left/right wing angles in radians, `yaw = x − y`, missing angles are `0.0`, `frame_number` is the source frame sequence and `timestamp_unix` is when the frame arrived. Rekkefly replaces the bridge, so don't run both on the same port. The publisher speaks the ZeroMQ protocol the way libzmq does, so every ZeroMQ library works, including older NetMQ releases in Unity projects that only speak ZMTP 2.0. ZMQ PUB/SUB drops messages sent before a subscriber connects, and it never blocks tracking: like libzmq, a subscriber more than 1,000 messages behind misses messages.
+`x`/`y` are the left/right wing angles in radians, `yaw = x − y`, missing angles are `0.0`, `frame_number` is the source frame sequence and `timestamp_unix` is when the frame arrived. Rekkefly replaces the bridge, so don't run both on the same port. The publisher speaks the ZeroMQ protocol the way libzmq does, so every subscriber that worked with the bridge works unchanged, including the older NetMQ releases in Unity projects that only speak ZMTP 2.0. ZMQ PUB/SUB drops messages sent before a subscriber connects, and it never blocks tracking: like libzmq, a subscriber more than 1,000 messages behind misses messages.
 
 ```sh
 python3 -m pip install pyzmq
@@ -567,7 +567,7 @@ The installer puts Rekkefly under `%LOCALAPPDATA%\Programs\Rekkefly`, with Start
 
 ### Ubuntu
 
-`sudo apt install ./rekkefly_0.6.0_amd64.deb` puts `rekkefly` on your PATH and adds a menu entry with **Start all rigs** and **Open the Bogong moth example** actions. Configs live in `~/.config/rekkefly/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
+`sudo apt install ./rekkefly_0.6.1_amd64.deb` puts `rekkefly` on your PATH and adds a menu entry with **Start all rigs** and **Open the Bogong moth example** actions. Configs live in `~/.config/rekkefly/configs`. Builds target Ubuntu 22.04 and newer on x86-64.
 
 ### Portable folders
 
